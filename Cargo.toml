@@ -1,4 +1,9 @@
 [workspace]
 members = [
-    "spl-token-faucet-cli"
+    "cli",
+    "faucet",
+    "localnet",
+    "rpc-client-headers",
+    "spl-token-ext",
+    "transaction",
 ]

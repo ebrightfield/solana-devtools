@@ -1,0 +1,14 @@
+{
+  "account": {
+    "data": [
+      "1111111TFEgCytveSRBr5UusRrpEs5e6sMtDyAmwSerTGeKwt1gw1uCVFWhBdvfySGYoQ19DJudAruHkCuM62RCrnhX4MEsGooqp5zwqjmpSYuemtwR7fRXinox2BzfkVCUQoyd5iMS8TuX3ooshTEYjJniMh4qP5Ld59EqzzoULgRbNKJtRVYe72pAPcRxNgdsP1rpCJtSFUmEeGxNZw5SryN9uQj",
+      "base58"
+    ],
+    "executable": false,
+    "lamports": 1000000000000,
+    "owner": "11111111111111111111111111111111",
+    "rentEpoch": 0,
+    "space": null
+  },
+  "pubkey": "11111113R2cuenjG5nFubqX9Wzuukdin2YfGQVzu5"
+}

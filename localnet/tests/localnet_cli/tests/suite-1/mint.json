@@ -1,0 +1,14 @@
+{
+  "account": {
+    "data": [
+      "DK9MyG79tYbuFWJUJhoDhSrZR4MHReMufXza3uwvD4UUdUyjBmiSzYxMpSfdWpavktCRGJZ4GFTGj2vDKfXiARHcv5DWbx6hycPngkGAGc1p78T",
+      "base58"
+    ],
+    "executable": false,
+    "lamports": 1000000000000,
+    "owner": "11111111111111111111111111111111",
+    "rentEpoch": 0,
+    "space": null
+  },
+  "pubkey": "1111111ogCyDbaRMvkdsHB3qfdyFYaG1WtRUAfdh"
+}
