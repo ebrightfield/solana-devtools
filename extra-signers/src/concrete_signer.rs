@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 use anyhow::anyhow;
@@ -6,7 +5,7 @@ use solana_clap_v3_utils::keypair::keypair_from_seed_phrase;
 use solana_program::pubkey::Pubkey;
 use solana_remote_wallet::locator::Locator;
 use solana_remote_wallet::remote_keypair::{generate_remote_keypair, RemoteKeypair};
-use solana_remote_wallet::remote_wallet::{initialize_wallet_manager, maybe_wallet_manager};
+use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
 use solana_sdk::derivation_path::DerivationPath;
 use solana_sdk::signature::{Keypair, Presigner, PresignerError, read_keypair, read_keypair_file, Signature, SignerError};
 use solana_sdk::signer::Signer;

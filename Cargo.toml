@@ -1,10 +1,11 @@
 [workspace]
 members = [
+    "cli",
     "cli-config",
-    "serde-pubkey-str",
+    "extra-signers",
     "faucet",
     "localnet",
     "rpc",
-    "cli",
+    "serde-pubkey-str",
     "transaction",
 ]

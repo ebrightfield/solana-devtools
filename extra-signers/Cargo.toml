@@ -6,7 +6,6 @@ description = "An assortment of useful signer types for Solana development"
 
 [[example]]
 name = "usb"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.68"
