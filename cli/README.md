@@ -1,18 +1,21 @@
-### Solana SPL Token Faucet CLI
+## Solana Devtools CLI
 
-An easy-to-use CLI for the SPL Token Faucet program, found here:
+### SPL Token Faucet CLI
+The `faucet` subcommand provides a CLI for the SPL Token Faucet program,
+the source code of which can be found here:
 
 https://github.com/paul-schaaf/spl-token-faucet
+
+With this subcommand, you can:
 
 - Create new faucets
 - Airdrop tokens from faucets.
 - Show human-readable faucet account data.
 - Find a faucet by its mint using `get_program_accounts`.
 - Create new SPL mints prepared for use in a new faucet.
-- Specify RPC url and signer with the same file and argument interface as the official Solana CLI.
 
 
-### Example Scripts
+### Example Faucet Scripts
 You can either run:
 ```
 ./example_scripts/full.sh

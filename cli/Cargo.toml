@@ -3,11 +3,21 @@ name = "solana-devtools-cli"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "solana-devtools"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.58"
 solana-sdk = "1.15"
+solana-client = "1.15"
 solana-clap-v3-utils = "1.15"
 solana-cli-config = "1.15"
+spl-token = "3.2.0"
+spl-associated-token-account = "1.1.2"
+spl-token-faucet = { version = "0.0.1", git = "https://github.com/paul-schaaf/spl-token-faucet.git" }
+anchor-spl = "0.27.0"
+anchor-lang = "0.27.0"
 clap = { version = "3.2.23", features = [ "derive", "env" ] }
+solana-devtools-cli-config = { path = "../cli-config" }
+solana-devtools-faucet = { path = "../faucet" }

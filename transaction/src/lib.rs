@@ -1,4 +1,3 @@
-mod error;
 /// Define a struct representing a transaction schema.
 /// Implementing [TransactionSchema] allows for a number of
 /// approaches to processing the transaction, from the most common
@@ -11,8 +10,6 @@ use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
-
-use crate::error::maybe_print_preflight_simulation_logs;
 
 pub trait TransactionSchema: Into<Vec<Instruction>> {
     /// Return an unsigned transaction
@@ -56,9 +53,4 @@ pub trait TransactionSchema: Into<Vec<Instruction>> {
             bincode::serialize(ix).expect("instruction failed to serialize")
         ).collect()
     }
-}
-
-pub trait TransactionMetadata {
-    fn name(&self) -> String;
-    fn metadata(&self) -> Map<String, Value>;
 }

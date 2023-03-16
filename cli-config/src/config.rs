@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use solana_clap_v3_utils::keypair::signer_from_path;
 use solana_sdk::signature::Signer;
-use clap::{Parser, ArgMatches, IntoApp};
+use clap::{Parser, ArgMatches};
 use solana_cli_config::Config;
 
 /// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the

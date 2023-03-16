@@ -1,9 +1,10 @@
 [workspace]
 members = [
-    "cli",
+    "cli-config",
+    "serde-pubkey-str",
     "faucet",
     "localnet",
-    "rpc-client-headers",
-    "spl-token-ext",
+    "rpc",
+    "cli",
     "transaction",
 ]

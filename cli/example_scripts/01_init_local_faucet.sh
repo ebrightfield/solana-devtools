@@ -7,7 +7,7 @@ set -x
 solana-keygen new -o "local_faucet_mint.json" --no-passphrase
 solana-keygen new -o "local_faucet.json" --no-passphrase
 
-cargo build --bin spl-faucet
+cargo build --bin solana-devtools
 
 echo Initializing mint
 

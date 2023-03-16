@@ -3,10 +3,6 @@ name = "solana-devtools-faucet"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "spl-faucet"
-path = "src/main.rs"
-
 [dependencies]
 anyhow = "1.0.58"
 solana-sdk = "1.15"
@@ -19,4 +15,4 @@ spl-associated-token-account = "1.1.2"
 anchor-spl = "0.27.0"
 anchor-lang = "0.27.0"
 clap = { version = "3.2.23", features = [ "derive", "env" ] }
-solana-devtools-cli = { path = "../cli" }
+solana-devtools-cli-config = { path = "../cli-config" }

@@ -3513,11 +3513,19 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.154"
+version = "1.0.156"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cdd151213925e7f1ab45a9bbfb129316bd00799784b174b7cc7bcd16961c49e"
+checksum = "314b5b092c0ade17c00142951e50ced110ec27cea304b1037c6969246c2469a4"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-pubkey-str"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "solana-sdk",
 ]
 
 [[package]]
@@ -3531,9 +3539,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.154"
+version = "1.0.156"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fc80d722935453bcafdc2c9a73cd6fac4dc1938f0346035d84bf99fa9e33217"
+checksum = "d7e29c4601e36bcec74a223228dce795f4cd3616341a4af93520ca1a837c087d"
 dependencies = [
  "proc-macro2 1.0.51",
  "quote 1.0.23",
@@ -3891,6 +3899,25 @@ dependencies = [
 name = "solana-devtools-cli"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang 0.27.0",
+ "anchor-spl",
+ "anyhow",
+ "clap 3.2.23",
+ "solana-clap-v3-utils",
+ "solana-cli-config",
+ "solana-client",
+ "solana-devtools-cli-config",
+ "solana-devtools-faucet",
+ "solana-sdk",
+ "spl-associated-token-account",
+ "spl-token",
+ "spl-token-faucet",
+]
+
+[[package]]
+name = "solana-devtools-cli-config"
+version = "0.1.0"
+dependencies = [
  "anyhow",
  "clap 3.2.23",
  "solana-clap-v3-utils",
@@ -3909,7 +3936,7 @@ dependencies = [
  "solana-clap-v3-utils",
  "solana-cli-config",
  "solana-client",
- "solana-devtools-cli",
+ "solana-devtools-cli-config",
  "solana-sdk",
  "spl-associated-token-account",
  "spl-token",
@@ -3965,13 +3992,10 @@ dependencies = [
 name = "solana-devtools-tx"
 version = "0.2.0"
 dependencies = [
- "anchor-client",
  "bincode",
- "serde",
  "serde_json",
  "solana-sdk",
  "spl-memo",
- "thiserror",
 ]
 
 [[package]]
@@ -4694,23 +4718,6 @@ dependencies = [
  "spl-memo",
  "spl-token",
  "thiserror",
-]
-
-[[package]]
-name = "spl-token-ext"
-version = "0.1.0"
-dependencies = [
- "anchor-lang 0.27.0",
- "anchor-spl",
- "anyhow",
- "clap 3.2.23",
- "solana-clap-v3-utils",
- "solana-cli-config",
- "solana-client",
- "solana-devtools-cli",
- "solana-sdk",
- "spl-associated-token-account",
- "spl-token",
 ]
 
 [[package]]

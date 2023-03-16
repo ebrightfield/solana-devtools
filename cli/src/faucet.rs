@@ -1,9 +1,8 @@
-
 use anchor_lang::Id;
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token::Token;
-use anyhow::{anyhow, Result};
-use clap::{IntoApp, Parser};
+use anyhow::anyhow;
+use clap::{ArgMatches, Parser};
 use solana_clap_v3_utils::keypair::{keypair_from_path, pubkey_from_path};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::program_pack::Pack;
@@ -14,30 +13,64 @@ use spl_associated_token_account::instruction::create_associated_token_account;
 use spl_token::instruction::{AuthorityType, set_authority};
 use spl_token_faucet::state::Faucet;
 use solana_devtools_faucet::{FAUCET_MINT_AUTH, init_faucet_account, init_faucet_instruction, init_faucet_mint, mint_tokens_instruction};
-use solana_devtools_cli::config::{KeypairArg, UrlArg};
+use solana_devtools_cli_config::config::KeypairArg;
 
 // TODO Close instruction
 // TODO Admin option on creation and mint and close
 
 #[derive(Debug, Parser)]
-struct Opt {
-    #[clap(flatten)]
-    url: UrlArg,
-    #[clap(flatten)]
-    keypair: KeypairArg,
-    #[clap(subcommand)]
-    cmd: Subcommand,
+pub enum FaucetSubcommand {
+    ConfigureSplMint {
+        /// Path to a signer (JSON private key, prompt://, etc)
+        mint_pubkey: String,
+    },
+    /// Initialize a new SPL mint that's configured to
+    /// the necessary mint authority to be a faucet mint.
+    InitSplMint {
+        /// Path to a signer (JSON private key, prompt://, etc)
+        mint_keypair: String,
+        /// The number of decimals for the new mint.
+        decimals: u8,
+    },
+    /// Create a new faucet.
+    InitFaucet {
+        /// Takes a pubkey or path to a signer. Must be initialized,
+        /// and be configured to the necessary mint authority to become a faucet.
+        mint_pubkey: String,
+        /// Maximum airdrop amount
+        amount: u64,
+        /// Optional path to a signer for the faucet address. If not provided,
+        /// a random keypair will be generated.
+        faucet_keypair: Option<String>,
+    },
+    /// Initialize an associated token account for whatever mint
+    /// is associated with some faucet address.
+    ///
+    /// This is equivalent to `spl-token create-account <faucet-mint>`
+    InitAtaForFaucet {
+        /// The faucet address
+        faucet: String,
+    },
+    /// Airdrop tokens from an SPL faucet
+    Mint {
+        #[clap(long)]
+        init_ata: bool,
+        /// The faucet address
+        faucet: String,
+        /// The amount to airdrop. Not a decimal value. It's in "lamports" of the SPL mint.
+        amount: u64,
+    },
+    Show {
+        faucet: String,
+    }
+    //Close,
 }
 
-impl Opt {
-    pub fn process(self) -> Result<()> {
-        let url = self.url.resolve()?;
-        let client = RpcClient::new(url);
-        match self.cmd {
-            Subcommand::ConfigureSplMint { mint_pubkey } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
-                let signer = self.keypair.resolve(&matches)?;
+impl FaucetSubcommand {
+    pub fn process(self, client: &RpcClient, keypair: &KeypairArg, matches: &ArgMatches) -> anyhow::Result<()> {
+        match self {
+            FaucetSubcommand::ConfigureSplMint { mint_pubkey } => {
+                let signer = keypair.resolve(&matches)?;
                 let mint = pubkey_from_path(
                     &matches,
                     &mint_pubkey,
@@ -65,10 +98,8 @@ impl Opt {
                     })?;
                 println!("{}", signature);
             },
-            Subcommand::InitSplMint { mint_keypair, decimals } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
-                let signer = self.keypair.resolve(&matches)?;
+            FaucetSubcommand::InitSplMint { mint_keypair, decimals } => {
+                let signer = keypair.resolve(&matches)?;
                 let mint = keypair_from_path(
                     &matches,
                     &mint_keypair, "keypair",
@@ -88,10 +119,8 @@ impl Opt {
                     })?;
                 println!("{}", signature);
             },
-            Subcommand::InitFaucet { mint_pubkey, amount, faucet_keypair } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
-                let signer = self.keypair.resolve(&matches)?;
+            FaucetSubcommand::InitFaucet { mint_pubkey, amount, faucet_keypair } => {
+                let signer = keypair.resolve(&matches)?;
                 let mint = pubkey_from_path(
                     &matches,
                     &mint_pubkey,
@@ -106,7 +135,7 @@ impl Opt {
                         false,
                     ).map_err(|_| anyhow!("Invalid faucet path: {}", path))?
                 } else {
-                  Keypair::new()
+                    Keypair::new()
                 };
                 println!("Faucet mint: {}", &mint);
                 println!("Attempting to create faucet at address: {}", faucet.pubkey());
@@ -129,10 +158,8 @@ impl Opt {
                     })?;
                 println!("{}", signature);
             },
-            Subcommand::InitAta { faucet } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
-                let signer = self.keypair.resolve(&matches)?;
+            FaucetSubcommand::InitAtaForFaucet { faucet } => {
+                let signer = keypair.resolve(&matches)?;
                 let faucet = pubkey_from_path(
                     &matches,
                     &faucet,
@@ -161,10 +188,8 @@ impl Opt {
                     })?;
                 println!("{}", signature);
             }
-            Subcommand::Mint { faucet, amount, init_ata } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
-                let signer = self.keypair.resolve(&matches)?;
+            FaucetSubcommand::Mint { faucet, amount, init_ata } => {
+                let signer = keypair.resolve(&matches)?;
                 let faucet = pubkey_from_path(
                     &matches,
                     &faucet,
@@ -210,9 +235,7 @@ impl Opt {
                     })?;
                 println!("{}", signature);
             },
-            Subcommand::Show { faucet } => {
-                let app = Opt::into_app();
-                let matches = app.get_matches();
+            FaucetSubcommand::Show { faucet } => {
                 let faucet = pubkey_from_path(
                     &matches,
                     &faucet,
@@ -226,58 +249,4 @@ impl Opt {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, Parser)]
-enum Subcommand {
-    ConfigureSplMint {
-        /// Path to a signer (JSON private key, prompt://, etc)
-        mint_pubkey: String,
-    },
-    /// Initialize a new SPL mint that's configured to
-    /// the necessary mint authority to be a faucet mint.
-    InitSplMint {
-        /// Path to a signer (JSON private key, prompt://, etc)
-        mint_keypair: String,
-        /// The number of decimals for the new mint.
-        decimals: u8,
-    },
-    /// Create a new faucet.
-    InitFaucet {
-        /// Takes a pubkey or path to a signer. Must be initialized,
-        /// and be configured to the necessary mint authority to become a faucet.
-        mint_pubkey: String,
-        /// Maximum airdrop amount
-        amount: u64,
-        /// Optional path to a signer for the faucet address. If not provided,
-        /// a random keypair will be generated.
-        faucet_keypair: Option<String>,
-    },
-    /// Initialize an associated token account for whatever mint
-    /// is associated with some faucet address.
-    ///
-    /// This is equivalent to `spl-token create-account <faucet-mint>`
-    InitAta {
-        /// The faucet address
-        faucet: String,
-    },
-    /// Airdrop tokens from an SPL faucet
-    Mint {
-        #[clap(long)]
-        init_ata: bool,
-        /// The faucet address
-        faucet: String,
-        /// The amount to airdrop. Not a decimal value. It's in "lamports" of the SPL mint.
-        amount: u64,
-    },
-    Show {
-        faucet: String,
-    }
-    //Close,
-}
-
-fn main() -> Result<()> {
-    let opt = Opt::parse();
-    opt.process()?;
-    Ok(())
 }

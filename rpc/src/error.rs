@@ -1,7 +1,6 @@
-use anchor_client::solana_client;
-use anchor_client::solana_client::client_error::ClientErrorKind;
-use anchor_client::solana_client::rpc_request::{RpcError, RpcResponseErrorData};
-use thiserror::Error;
+use solana_client;
+use solana_client::client_error::ClientErrorKind;
+use solana_client::rpc_request::{RpcError, RpcResponseErrorData};
 
 /// Prints the transaction logs for failed preflight simulations.
 /// Otherwise just prints the error.

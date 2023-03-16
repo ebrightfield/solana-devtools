@@ -29,6 +29,8 @@ use {
 };
 use serde::Deserialize ;
 
+pub mod error;
+
 /// Supporting struct for the [impl RpcSender for HttpSenderWithHeaders] block below.
 #[derive(Deserialize, Debug)]
 pub struct RpcErrorObject {
