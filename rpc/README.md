@@ -1,10 +1,11 @@
-## Solana RPC Client Headers
+## Solana Devtools RPC
 
-Adds a new `HttpSenderWithHeaders` struct that allows for default headers
+### Client Headers
+
+There is a `HttpSenderWithHeaders` struct that allows for default headers
 to be passed in.
 
-This is useful for example when using an authenticated
-RPC provider like GenesysGo, which requires a Bearer token be passed with each request.
+This is useful for example when using authenticated RPC providers.
 
 Example Usage:
 ```

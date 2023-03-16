@@ -1,8 +1,6 @@
 /// Define a struct representing a transaction schema.
 /// Implementing [TransactionSchema] allows for a number of
-/// approaches to processing the transaction, from the most common
-/// case of signing and sending, to more niche cases of printing instruction
-/// data to use as a multisig proposal.
+/// approaches to processing the transaction.
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::message::Message;
@@ -74,6 +72,7 @@ impl<T: Into<Vec<Instruction>>> TransactionSchema for T {
 #[cfg(test)]
 mod tests {
     use solana_sdk::signature::Keypair;
+    use solana_sdk::signer::Signer;
     use spl_memo::build_memo;
     use super::*;
 
@@ -81,22 +80,23 @@ mod tests {
 
     impl Into<Vec<Instruction>> for &MemoType {
         fn into(self) -> Vec<Instruction> {
-            vec![build_memo(self.message.as_bytes(), &[])]
+            vec![build_memo(self.0.as_bytes(), &[])]
         }
     }
 
     #[test]
     fn memo_type() {
         let memo = MemoType(String::from("foo"));
-        let tx = (&memo).transaction(Hash::new_unique(), None, &vec![
-            Box::new(Keypair::new())
+        let key = Keypair::new();
+        let _ = (&memo).transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![
+            &key
         ]);
-        let tx = (&memo).signed_serialized(Hash::new_unique(), None, &vec![
-            Box::new(Keypair::new())
+        let _ = (&memo).signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![
+            &key
         ]);
-        let ixs = (&memo).unsigned_transaction(None);
-        let ixs = (&memo).unsigned_serialized(None);
-        let ixs = (&memo).instructions();
-        let ixs = (&memo).instructions_serialized();
+        let _ = (&memo).unsigned_transaction(None);
+        let _ = (&memo).unsigned_serialized(None);
+        let _ = (&memo).instructions();
+        let _ = (&memo).instructions_serialized();
     }
 }
