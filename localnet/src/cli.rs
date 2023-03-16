@@ -22,6 +22,10 @@ pub struct SolanaLocalnetCli {
 }
 
 impl SolanaLocalnetCli {
+    pub fn new() -> Self {
+        Self::parse()
+    }
+
     pub fn process(self, test_toml_generators: Vec<TestTomlGenerator>) -> anyhow::Result<()> {
         if let Some(subcommand) = self.command {
             match subcommand {

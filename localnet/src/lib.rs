@@ -16,6 +16,7 @@ pub mod from_anchor;
 
 pub use localnet_account::LocalnetAccount;
 pub use test_toml_generator::TestTomlGenerator;
+pub use cli::SolanaLocalnetCli;
 
 /// Use this struct as type T for any [GeneratedAccount] or [ClonedAccount]
 /// owned by `SystemProgram` (e.g. typical user accounts).

@@ -4014,7 +4014,7 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-tx"
-version = "0.2.0"
+version = "0.26.0"
 dependencies = [
  "bincode",
  "solana-sdk",
