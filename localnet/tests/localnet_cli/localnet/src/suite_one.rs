@@ -6,7 +6,6 @@ use solana_devtools_localnet::{TestTomlGenerator, LocalnetAccount, SystemAccount
 pub fn suite_1() -> TestTomlGenerator {
     TestTomlGenerator {
         save_directory: "./tests/suite-1".to_string(),
-        test_file_glob: Some("./tests/suite-1/test.ts".to_string()),
         accounts: accounts(),
         ..Default::default()
     }

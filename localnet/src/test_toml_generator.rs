@@ -115,7 +115,7 @@ impl TestTomlGenerator {
             test_scripts.insert("test".to_string(), test_script);
             Some(test_scripts)
         } else {
-            None
+            Some(ScriptsConfig::new())
         };
         // Write TOML to file.
         let test_toml = _TestToml {
