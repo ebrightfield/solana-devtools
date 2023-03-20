@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::pubkey_from_path;
 use solana_client::rpc_client::RpcClient;
-use solana_devtools_cli_config::{KeypairArg, UrlArg};
+use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
 use crate::faucet::FaucetSubcommand;
 
 #[derive(Debug, Parser)]
@@ -14,6 +14,8 @@ struct Opt {
     url: UrlArg,
     #[clap(flatten)]
     keypair: KeypairArg,
+    #[clap(flatten)]
+    commitment: CommitmentArg,
     #[clap(subcommand)]
     cmd: Subcommand,
 }
@@ -44,7 +46,8 @@ impl Opt {
             },
             Subcommand::Faucet(subcommand) => {
                 let url = self.url.resolve()?;
-                let client = RpcClient::new(url);
+                let commitment = self.commitment.resolve()?;
+                let client = RpcClient::new_with_commitment(url, commitment);
                 subcommand.process(&client, &self.keypair, &matches)?;
             },
         }

@@ -1,8 +1,11 @@
+use std::str::FromStr;
 use anyhow::{anyhow, Result};
 use solana_clap_v3_utils::keypair::signer_from_path;
 use solana_sdk::signature::Signer;
-use clap::{Parser, ArgMatches};
+use clap::{Parser, ArgMatches, ValueEnum};
+use solana_clap_v3_utils::input_validators::normalize_to_url_if_moniker;
 use solana_cli_config::Config;
+use solana_sdk::commitment_config::CommitmentConfig;
 
 /// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
 /// `-u/--url` CLI arg as it functions in the official Solana CLI.
@@ -19,19 +22,69 @@ pub struct UrlArg {
 impl UrlArg {
     pub fn resolve(&self) -> Result<String> {
         if let Some(url) = self.url.clone() {
+            let url = normalize_to_url_if_moniker(url);
             return Ok(url);
         }
         let config = get_solana_cli_config()?;
-        return Ok(config.json_rpc_url);
+        return Ok(normalize_to_url_if_moniker(config.json_rpc_url));
     }
 
     pub fn resolve_with_config(&self, config: &Config) -> Result<String> {
         if let Some(url) = self.url.clone() {
+            let url = normalize_to_url_if_moniker(url);
             return Ok(url);
         }
-        return Ok(config.json_rpc_url.clone());
+        return Ok(normalize_to_url_if_moniker(config.json_rpc_url.clone()));
     }
 }
+
+#[derive(ValueEnum, Debug, Default, Clone)]
+pub enum CommitmentLevel {
+    Processed,
+    #[default]
+    Confirmed,
+    Finalized,
+}
+
+impl Into<CommitmentConfig> for CommitmentLevel {
+    fn into(self) -> CommitmentConfig {
+        match self {
+            CommitmentLevel::Processed => {
+                CommitmentConfig::processed()
+            }
+            CommitmentLevel::Confirmed => {
+                CommitmentConfig::confirmed()
+            }
+            CommitmentLevel::Finalized => {
+                CommitmentConfig::finalized()
+            }
+        }
+    }
+}
+
+#[derive(Debug, Parser)]
+pub struct CommitmentArg {
+    #[clap(short, long, value_enum)]
+    pub commitment: Option<CommitmentLevel>,
+}
+
+impl CommitmentArg {
+    pub fn resolve(&self) -> Result<CommitmentConfig> {
+        if let Some(commitment) = self.commitment.clone() {
+            return Ok(commitment.into());
+        }
+        let config = get_solana_cli_config()?;
+        return Ok(CommitmentConfig::from_str(&config.commitment)?)
+    }
+
+    pub fn resolve_with_config(&self, config: &Config) -> Result<CommitmentConfig> {
+        if let Some(commitment) = self.commitment.clone() {
+            return Ok(commitment.into());
+        }
+        return Ok(CommitmentConfig::from_str(&config.commitment)?)
+    }
+}
+
 
 /// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
 /// `-k/--keypair` CLI arg as it functions in the Solana CLI.
