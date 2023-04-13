@@ -61,7 +61,7 @@ fn validator_flags(
                     &program.path.join("src/lib.rs").as_os_str().to_str().unwrap())?;
                 let header = IdlAccount {
                     authority: cfg.wallet_kp()?.pubkey(),
-                    data: idl_account_data.clone(),
+                    data_len: idl_account_data.len() as u32,
                 };
                 let mut account_data = Vec::new();
                 header.try_serialize(&mut account_data).unwrap();

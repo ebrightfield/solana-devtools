@@ -157,7 +157,7 @@ impl LocalnetAccount {
             owner: self.owner.to_string(),
             executable: self.executable,
             rent_epoch: self.rent_epoch,
-            //space: None,
+            space: None,
         };
         let pubkey = self.address.to_string();
         let file = File::create(format!("{}/{}", path_prefix, &self.name))?;

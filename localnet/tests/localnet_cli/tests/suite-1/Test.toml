@@ -11,4 +11,3 @@ address = "11111112D1oxKts8YPdTJRG5FzxTNpMtWmq8hkVx3"
 filename = "test_user_token_act.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 ./tests/suite-1/test.ts"
