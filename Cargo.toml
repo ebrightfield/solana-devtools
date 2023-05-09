@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "anchor-transaction",
     "cli",
     "cli-config",
     "extra-signers",
