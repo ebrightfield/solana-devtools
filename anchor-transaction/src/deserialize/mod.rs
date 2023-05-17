@@ -12,6 +12,9 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta, UiInstruction, UiTransactionEncoding, UiTransactionStatusMeta};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fs;
+use std::str::FromStr;
+use serde::{Deserialize, Serialize};
 use solana_program::instruction::CompiledInstruction;
 use solana_program::message::VersionedMessage;
 use solana_transaction_status::option_serializer::OptionSerializer;
@@ -23,6 +26,7 @@ pub mod instruction;
 
 /// The output of a successful account deserialization
 /// aided by its owning program's on-chain IDL.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IdlDeserializedAccount {
     /// The program name listed in the IDL.
     pub program_name: String,
@@ -80,6 +84,21 @@ impl AnchorLens {
             idl_cache: RefCell::new(HashMap::new()),
             cache_idls: false,
         }
+    }
+
+    pub fn new_with_idl(client: RpcClient, idl_program_id: String, idl_path: String, cache_idls: bool) -> Result<Self> {
+        let prog_id = Pubkey::from_str(&idl_program_id)?;
+        let idl = fs::read_to_string(idl_path)?;
+        let idl = serde_json::from_str(&idl)
+            .map_err(|_| anyhow!("Could not deserialize decompressed IDL data"))?;
+        let idl_with_discriminator = IdlWithDiscriminators::new(idl);
+        let mut idl_cache = HashMap::new();
+        idl_cache.insert(prog_id.to_bytes(), idl_with_discriminator);
+        Ok(Self {
+            client,
+            idl_cache: RefCell::new(idl_cache),
+            cache_idls,
+        })
     }
 
     /// Initializes with caching turned off. This will make [AnchorLens::fetch_idl]
@@ -247,7 +266,6 @@ impl AnchorLens {
             } else {
                 // If the IDL contains no matching discriminator,
                 // then it's not up to date or invalid.
-                println!("{:?}", &ix.data[0..8]);
                 let json = json!({
                    "program_id": program_id.to_string(),
                    "unknown_discriminator": format!("instruction {}", i)

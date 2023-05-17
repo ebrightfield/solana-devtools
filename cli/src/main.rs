@@ -9,6 +9,7 @@ use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::pubkey_from_path;
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use anchor_transaction_deser::AnchorLens;
 use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
@@ -76,15 +77,53 @@ impl Opt {
                     println!("{}", json);
                 }
             },
-            Subcommand::DeserializeTransaction { txid, outfile } => {
+            Subcommand::DeserializeTransaction { txid, idl, outfile } => {
                 let url = self.url.resolve()?;
                 let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let txid = Signature::from_str(&txid)?;
-                let lens = AnchorLens::new(client);
+                let lens = if let Some(path) = idl {
+                    let pieces: Vec<&str> = path.as_str().split(":").collect();
+                    if pieces.len() != 2 {
+                        return Err(anyhow!("Invalid idl argument, must be <program-id>:<filepath>"));
+                    }
+                    let prog_id = pieces[0].to_string();
+                    let path = pieces[1].to_string();
+                    AnchorLens::new_with_idl(client, prog_id, path, true)
+                        .expect("Invalid IDL file")
+                } else {
+                    AnchorLens::new(client)
+                };
                 let tx = lens.get_versioned_transaction(&txid)?;
                 let json = lens.deserialize_transaction(tx)?;
                 let json = serde_json::to_string_pretty(&json)?;
+                if let Some(outfile) = outfile {
+                    let mut file = File::create(outfile)?;
+                    file.write(json.as_bytes())?;
+                } else {
+                    println!("{}", json);
+                }
+            },
+            Subcommand::DeserializeAccount { address, outfile, idl } => {
+                let url = self.url.resolve()?;
+                let commitment = self.commitment.resolve()?;
+                let client = RpcClient::new_with_commitment(url, commitment);
+                let lens = if let Some(path) = idl {
+                    let pieces: Vec<&str> = path.as_str().split(":").collect();
+                    if pieces.len() != 2 {
+                        return Err(anyhow!("Invalid idl argument, must be <program-id>:<filepath>"));
+                    }
+                    let prog_id = pieces[0].to_string();
+                    let path = pieces[1].to_string();
+                    AnchorLens::new_with_idl(client, prog_id, path, true)
+                        .expect("Invalid IDL file")
+                } else {
+                    AnchorLens::new(client)
+                };
+                let address = Pubkey::from_str(&address)
+                    .map_err(|_| anyhow!("Invalid pubkey address"))?;
+                let act = lens.fetch_and_deserialize_account(&address, None)?;
+                let json = serde_json::to_string_pretty(&act)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
                     file.write(json.as_bytes())?;
@@ -105,7 +144,20 @@ enum Subcommand {
     #[clap(subcommand)]
     Faucet(FaucetSubcommand),
     GetTransaction { txid: String, outfile: Option<String> },
-    DeserializeTransaction { txid: String, outfile: Option<String> },
+    DeserializeTransaction {
+        #[clap(long)]
+        idl: Option<String>,
+        #[clap(long)]
+        outfile: Option<String>,
+        txid: String,
+    },
+    DeserializeAccount {
+        #[clap(long)]
+        idl: Option<String>,
+        #[clap(long)]
+        outfile: Option<String>,
+        address: String,
+    },
 }
 
 fn main() -> Result<()> {
