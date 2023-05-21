@@ -10,7 +10,7 @@ pub struct ThreadsafeSigner<T: Signer> {
 
 impl<T: Signer> ThreadsafeSigner<T> {
     #[allow(dead_code)]
-    fn new(inner: T) -> Self {
+    pub fn new(inner: T) -> Self {
         Self {
             inner: Arc::new(Mutex::new(inner))
         }

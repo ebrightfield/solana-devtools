@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-signers"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "An assortment of useful signer types for Solana development"
 
