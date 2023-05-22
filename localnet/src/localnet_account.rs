@@ -176,13 +176,12 @@ impl LocalnetAccount {
 /// that both imports the JSON as well as extracts the public key object.
 /// JS identifier for each pubkey is based off the JSON filename.
 pub fn js_test_import(location: &str) -> String {
-    let location = &mut location.clone();
-    // let location = if !location.ends_with(".json") {
-    //     location.to_string()
-    // } else {
-    //     let (location, _) = location.split_at(location.len()-5);
-    //     location.to_string()
-    // };
+    let location = if !location.ends_with(".json") {
+        location.to_string()
+    } else {
+        let (location, _) = location.split_at(location.len()-5);
+        location.to_string()
+    };
     let name = {
         let mut pieces = location.rsplit('/');
         match pieces.next() {
@@ -194,5 +193,5 @@ pub fn js_test_import(location: &str) -> String {
     let name = name.to_string().to_camel_case();
     // Output an import statement
     // and its subsequent extraction of the Typescript `PublicKey` object.
-    format!("import * as {}Json from \"./{}\";\nexport const {} = new anchor.web3.PublicKey({}Json.pubkey);", &name, &location, &name, &name)
+    format!("import * as {}Json from \"./{}.json\";\nexport const {} = new anchor.web3.PublicKey({}Json.pubkey);", &name, &location, &name, &name)
 }
