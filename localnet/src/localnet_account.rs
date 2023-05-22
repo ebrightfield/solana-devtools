@@ -176,13 +176,13 @@ impl LocalnetAccount {
 /// that both imports the JSON as well as extracts the public key object.
 /// JS identifier for each pubkey is based off the JSON filename.
 pub fn js_test_import(location: &str) -> String {
-    //let mut location = &mut location.clone();
-    let location = if !location.ends_with(".json") {
-        location.to_string()
-    } else {
-        let (location, _) = location.split_at(location.len()-5);
-        location.to_string()
-    };
+    let location = &mut location.clone();
+    // let location = if !location.ends_with(".json") {
+    //     location.to_string()
+    // } else {
+    //     let (location, _) = location.split_at(location.len()-5);
+    //     location.to_string()
+    // };
     let name = {
         let mut pieces = location.rsplit('/');
         match pieces.next() {

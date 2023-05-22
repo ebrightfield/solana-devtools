@@ -3832,7 +3832,7 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-localnet"
-version = "0.27.0"
+version = "0.27.1"
 dependencies = [
  "Inflector",
  "anchor-cli",
@@ -3877,7 +3877,7 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-signers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "solana-clap-v3-utils",

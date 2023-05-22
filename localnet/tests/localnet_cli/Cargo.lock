@@ -3506,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-localnet"
-version = "0.27.0"
+version = "0.27.1"
 dependencies = [
  "Inflector",
  "anchor-cli",
