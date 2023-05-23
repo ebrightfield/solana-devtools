@@ -2,3 +2,4 @@
 .anchor
 test-ledger
 target
+tests/project/tests/*

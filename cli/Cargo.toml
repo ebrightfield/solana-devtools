@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-cli"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -23,3 +23,6 @@ clap = { version = "3.2.23", features = [ "derive", "env" ] }
 solana-devtools-cli-config = { path = "../cli-config" }
 solana-devtools-faucet = { path = "../faucet" }
 anchor-transaction-deser = { path = "../anchor-transaction" }
+spl-name-service = "0.2.0"
+base58 = "0.2.0"
+spl-memo = "3"

@@ -1,0 +1,12 @@
+[package]
+name = "test-ix"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-devtools-transaction = { path = "../../../" }
+clap = "3.2.23"
+solana-sdk = "1.15"
+solana-client = "1.15"
+anyhow = "1.0.66"
+spl-token = "3.5.0"

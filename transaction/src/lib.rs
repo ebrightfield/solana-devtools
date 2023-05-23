@@ -8,6 +8,9 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signers::Signers;
 use solana_sdk::transaction::Transaction;
 
+/// Facilitates the creation of (un-)signed transactions, potentially serialized,
+/// or lists of serialized instructions.
+/// Any type `T: Into<Vec<Instruction>>` implements this trait.
 pub trait TransactionSchema: Sized {
     /// Return an unsigned transaction
     fn unsigned_transaction(self, payer: Option<&Pubkey>) -> Transaction;

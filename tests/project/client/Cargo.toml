@@ -1,0 +1,11 @@
+[package]
+name = "test-ix"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-devtools-tx = { path = "../../../transaction", features = ["anchor"] }
+test-program = { path = "../programs/test-program" }
+solana-sdk = "1.15"
+solana-program = "1.15"
+anchor-lang = "0.27"

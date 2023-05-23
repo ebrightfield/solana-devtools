@@ -1,19 +1,26 @@
 mod faucet;
+mod name_service;
 
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::{anyhow, Result};
 use clap::{IntoApp, Parser};
-use solana_clap_v3_utils::keypair::pubkey_from_path;
+use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
+use solana_sdk::hash::Hasher;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
+use solana_sdk::signer::Signer;
+use solana_sdk::transaction::Transaction;
+use spl_memo::build_memo;
 use anchor_transaction_deser::AnchorLens;
 use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
 use crate::faucet::FaucetSubcommand;
+use crate::name_service::NameServiceSubcommand;
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -56,6 +63,58 @@ impl Opt {
                 let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 subcommand.process(&client, &self.keypair, &matches)?;
+            },
+            Subcommand::NameService(subcommand) => {
+                let url = self.url.resolve()?;
+                let commitment = self.commitment.resolve()?;
+                let client = RpcClient::new_with_commitment(url, commitment);
+                subcommand.process(&client, &self.keypair, &matches)?;
+            },
+            Subcommand::Memo { msg, signer, hash_file } => {
+                let opt = Opt::into_app();
+                let matches = opt.get_matches();
+                let main_signer = self.keypair.resolve(&matches)?;
+                let url = self.url.resolve()?;
+                let commitment = self.commitment.resolve()?;
+                let client = RpcClient::new_with_commitment(url, commitment);
+                let mut signers: Vec<Box<dyn Signer>> = vec![];
+                for path in signer {
+                    signers.push(signer_from_path(
+                        &matches,
+                        &path,
+                        "keypair",
+                        &mut None,
+                    ).map_err(|_|anyhow!("Invalid signer path: {}", path))?);
+                }
+                signers.push(main_signer);
+                let signer_pubkeys: Vec<Pubkey> = signers.iter().map(|s| s.pubkey()).collect();
+                let pubkey_refs: Vec<&Pubkey> = signer_pubkeys.iter()
+                    .map(|p| p)
+                    .collect();
+                let msg = if hash_file {
+                    let mut hasher = Hasher::default();
+                    hasher.hash(&fs::read(msg)?);
+                    hasher.result().to_string()
+                } else {
+                    msg
+                };
+                let ix = build_memo(
+                    msg.as_bytes(),
+                    &pubkey_refs,
+                );
+                let tx = Transaction::new_signed_with_payer(
+                    &[ix],
+                    Some(&signer_pubkeys.last().unwrap()),
+                    &signers,
+                    client.get_latest_blockhash()?
+                );
+                let signature = client.send_transaction(&tx)
+                    .map_err(|e| {
+                        println!("{:#?}", &e);
+                        e
+                    })?;
+                println!("{}", signature);
+
             },
             Subcommand::GetTransaction { txid, outfile } => {
                 let url = self.url.resolve()?;
@@ -141,21 +200,53 @@ enum Subcommand {
     /// Display the owner's associated token address for a given mint. Owner defaults
     /// to the configured signer.
     Ata { mint: String, owner: Option<String> },
+    /// Execute a memo transaction.
+    Memo {
+        /// Message
+        msg: String,
+        /// If included, reinterprets `MSG` as a filepath,
+        /// and hashes the contents of the file to use as a memo message.
+        #[clap(long)]
+        hash_file: bool,
+        /// Additional signers of the memo
+        #[clap(short, long)]
+        signer: Vec<String>,
+    },
+    /// Execute a transaction on the SPL Token Faucet program.
+    /// The program is on devnet at 4bXpkKSV8swHSnwqtzuboGPaPDeEgAn4Vt8GfarV5rZt.
+    /// See https://github.com/paul-schaaf/spl-token-faucet for source code.
     #[clap(subcommand)]
     Faucet(FaucetSubcommand),
-    GetTransaction { txid: String, outfile: Option<String> },
+    /// Execute a transaction on the SPL Name Program
+    #[clap(subcommand)]
+    NameService(NameServiceSubcommand),
+    /// A vanilla RPC call to get a confirmed transaction.
+    GetTransaction {
+        /// Transaction signature
+        txid: String,
+        /// Optionally write the data to a file as JSON.
+        outfile: Option<String>,
+    },
+    /// Fetch a confirmed transaction and attempt to deserialize it using Anchor IDL data.
     DeserializeTransaction {
+        /// Optionally supply the IDL filepath. Otherwise, the IDL data is fetched on-chain.
         #[clap(long)]
         idl: Option<String>,
+        /// Optionally write the data to a file as JSON.
         #[clap(long)]
         outfile: Option<String>,
+        /// Transaction signature
         txid: String,
     },
+    /// Fetch account data and attempt to deserialize it using Anchor IDL data.
     DeserializeAccount {
+        /// Optionally supply the IDL filepath. Otherwise, the IDL data is fetched on-chain.
         #[clap(long)]
         idl: Option<String>,
+        /// Optionally write the data to a file as JSON.
         #[clap(long)]
         outfile: Option<String>,
+        /// Account address
         address: String,
     },
 }
