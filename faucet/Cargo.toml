@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.58"
-solana-sdk = "1.15"
-solana-client = "1.15"
-solana-clap-v3-utils = "1.15"
-solana-cli-config = "1.15"
+solana-sdk = "1.14"
+solana-client = "1.14"
+solana-clap-v3-utils = "1.14"
+solana-cli-config = "1.14"
 spl-token-faucet = { version = "0.0.1", git = "https://github.com/paul-schaaf/spl-token-faucet.git" }
 spl-token = "3.2.0"
 spl-associated-token-account = "1.1.2"

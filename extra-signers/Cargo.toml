@@ -9,8 +9,8 @@ name = "usb"
 
 [dependencies]
 anyhow = "1.0.68"
-solana-sdk = "1.14.11"
-solana-program = "1.14.11"
-solana-remote-wallet = "1.14.11"
-solana-clap-v3-utils = "1.14.11"
+solana-sdk = "1.14"
+solana-program = "1.14"
+solana-remote-wallet = "1.14"
+solana-clap-v3-utils = "1.14"
 uriparse = "0.6.4"
