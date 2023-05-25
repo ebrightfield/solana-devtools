@@ -3841,7 +3841,7 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-localnet"
-version = "0.27.1"
+version = "0.27.2"
 dependencies = [
  "Inflector",
  "anchor-cli",
@@ -3855,7 +3855,6 @@ dependencies = [
  "serde",
  "serde_json",
  "shellexpand",
- "solana-account-decoder",
  "solana-client",
  "solana-faucet",
  "solana-program",

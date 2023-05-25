@@ -5,7 +5,7 @@ use solana_program::clock::Epoch;
 use anchor_cli::config::AccountEntry;
 use std::fs::File;
 use serde_json::json;
-use solana_account_decoder::{UiAccount, UiAccountData, UiAccountEncoding};
+use serde::{Deserialize, Serialize};
 use solana_sdk::bs58;
 use inflector::Inflector;
 
@@ -156,7 +156,8 @@ impl LocalnetAccount {
             ),
             owner: self.owner.to_string(),
             executable: self.executable,
-            ..Default::default()
+            rent_epoch: self.rent_epoch,
+            space: Some(self.account_data.len() as u64),
         };
         let pubkey = self.address.to_string();
         let file = File::create(format!("{}/{}", path_prefix, &self.name))?;
@@ -193,4 +194,27 @@ pub fn js_test_import(location: &str) -> String {
     // Output an import statement
     // and its subsequent extraction of the Typescript `PublicKey` object.
     format!("import * as {}Json from \"./{}.json\";\nexport const {} = new anchor.web3.PublicKey({}Json.pubkey);", &name, &location, &name, &name)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UiAccount {
+    pub lamports: u64,
+    pub data: UiAccountData,
+    pub owner: String,
+    pub executable: bool,
+    pub rent_epoch: Epoch,
+    pub space: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum UiAccountData {
+    Binary(String, UiAccountEncoding),
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum UiAccountEncoding {
+    Base58,
 }
