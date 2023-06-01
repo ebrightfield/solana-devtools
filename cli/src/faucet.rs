@@ -209,10 +209,10 @@ impl FaucetSubcommand {
                         &mint,
                         &Token::id(),
                     ));
-                } else {
-                    println!("Associated token account found. \
-                Create one with the `init-ata` subcommand, then rerun this subcommand.");
-                    return Ok(());
+                // } else {
+                //     println!("Associated token account found. \
+                // Create one with the `init-ata` subcommand, then rerun this subcommand.");
+                //     return Ok(());
                 }
 
                 ixs.push(mint_tokens_instruction(

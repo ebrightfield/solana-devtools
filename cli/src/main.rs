@@ -249,6 +249,42 @@ enum Subcommand {
         /// Account address
         address: String,
     },
+    // TODO Program Upgrade instruction
+    // TODO This needs a CLI command
+    /*
+    /// This is in solana_sdk::bpf_loader_upgradeable
+    pub fn upgrade(
+        program_address: &Pubkey,
+        buffer_address: &Pubkey,
+        authority_address: &Pubkey,
+        spill_address: &Pubkey,
+    ) -> Instruction {
+        let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &id());
+        Instruction::new_with_bincode(
+            id(),
+            &UpgradeableLoaderInstruction::Upgrade,
+            vec![
+                AccountMeta::new(programdata_address, false),
+                AccountMeta::new(*program_address, false),
+                AccountMeta::new(*buffer_address, false),
+                AccountMeta::new(*spill_address, false),
+                AccountMeta::new_readonly(sysvar::rent::id(), false),
+                AccountMeta::new_readonly(sysvar::clock::id(), false),
+                AccountMeta::new_readonly(*authority_address, true),
+            ],
+        )
+    }
+    let final_message = Message::new_with_blockhash(
+        &[bpf_loader_upgradeable::upgrade(
+            program_id,
+            buffer_pubkey,
+            &upgrade_authority.pubkey(),
+            &config.signers[0].pubkey(),
+        )],
+        Some(&config.signers[0].pubkey()),
+        &blockhash,
+    );
+    */
 }
 
 fn main() -> Result<()> {
