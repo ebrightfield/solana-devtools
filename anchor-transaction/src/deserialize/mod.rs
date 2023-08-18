@@ -238,22 +238,23 @@ impl AnchorLens {
         let mut json = if let Ok(idl) = idl {
             // If there's an IDL, we can try deserializing
             let maybe_deserialized = deser_ix_data_from_idl(&idl, ix.data.clone());
-            if let Ok((idl_ix, ix_data)) = maybe_deserialized {
-                // If we succeeded in deserializing the instruction data,
-                // then we can also name each account passed in to the instruction.
-                let accounts = {
-                    let mut metas: Vec<Value> = vec![];
-                    let mut increment: usize = 0;
-                    let account_meta_groups =
-                        AccountMetaGroups::new_from_message(message.clone(), ix.accounts.clone());
-                    account_meta_groups.idl_accounts_to_json(
-                        &mut increment,
-                        idl_ix.accounts.clone(),
-                        &mut metas,
-                    );
-                    metas
-                };
-                let json = json!({
+            match maybe_deserialized {
+                Ok((idl_ix, ix_data)) => {
+                    // If we succeeded in deserializing the instruction data,
+                    // then we can also name each account passed in to the instruction.
+                    let accounts = {
+                        let mut metas: Vec<Value> = vec![];
+                        let mut increment: usize = 0;
+                        let account_meta_groups =
+                            AccountMetaGroups::new_from_message(message.clone(), ix.accounts.clone());
+                        account_meta_groups.idl_accounts_to_json(
+                            &mut increment,
+                            idl_ix.accounts.clone(),
+                            &mut metas,
+                        );
+                        metas
+                    };
+                    let json = json!({
                    "program_id": program_id.to_string(),
                    "program_name": idl.name,
                    "instruction": {
@@ -262,15 +263,18 @@ impl AnchorLens {
                        "accounts": accounts
                     }
                 });
-                json
-            } else {
-                // If the IDL contains no matching discriminator,
-                // then it's not up to date or invalid.
-                let json = json!({
-                   "program_id": program_id.to_string(),
-                   "unknown_discriminator": format!("instruction {}", i)
-                });
-                json
+                    json
+                }
+                Err(e) => {
+                    // If the IDL contains no matching discriminator,
+                    // then it's not up to date or invalid.
+                    eprintln!("{e}");
+                    let json = json!({
+                       "program_id": program_id.to_string(),
+                       "unknown_discriminator_or_ix_data": format!("instruction {}", i)
+                    });
+                    json
+                }
             }
         } else {
             // If there's no IDL, we cannot deserialize

@@ -11,7 +11,9 @@ use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
+use solana_sdk::bs58;
 use solana_sdk::hash::Hasher;
+use solana_sdk::message::{Message, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
@@ -190,6 +192,39 @@ impl Opt {
                     println!("{}", json);
                 }
             },
+            Subcommand::DeserializeMessage { b58_message, outfile, idl } => {
+                let url = self.url.resolve()?;
+                let commitment = self.commitment.resolve()?;
+                let client = RpcClient::new_with_commitment(url, commitment);
+
+                let lens = if let Some(path) = idl {
+                    let pieces: Vec<&str> = path.as_str().split(":").collect();
+                    if pieces.len() != 2 {
+                        return Err(anyhow!("Invalid idl argument, must be <program-id>:<filepath>"));
+                    }
+                    let prog_id = pieces[0].to_string();
+                    let path = pieces[1].to_string();
+                    AnchorLens::new_with_idl(client, prog_id, path, true)
+                        .expect("Invalid IDL file")
+                } else {
+                    AnchorLens::new(client)
+                };
+
+                let message = bs58::decode(b58_message)
+                    .into_vec()
+                    .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?;
+                let message: Message = bincode::deserialize(&message)?;
+                let message = VersionedMessage::Legacy(message);
+                let json = lens.deserialize_message(&message)?;
+                let json = serde_json::to_string_pretty(&json)?;
+                if let Some(outfile) = outfile {
+                    let mut file = File::create(outfile)?;
+                    file.write(json.as_bytes())?;
+                } else {
+                    println!("{}", json);
+                }
+
+            }
         }
         Ok(())
     }
@@ -249,42 +284,16 @@ enum Subcommand {
         /// Account address
         address: String,
     },
-    // TODO Program Upgrade instruction
-    // TODO This needs a CLI command
-    /*
-    /// This is in solana_sdk::bpf_loader_upgradeable
-    pub fn upgrade(
-        program_address: &Pubkey,
-        buffer_address: &Pubkey,
-        authority_address: &Pubkey,
-        spill_address: &Pubkey,
-    ) -> Instruction {
-        let (programdata_address, _) = Pubkey::find_program_address(&[program_address.as_ref()], &id());
-        Instruction::new_with_bincode(
-            id(),
-            &UpgradeableLoaderInstruction::Upgrade,
-            vec![
-                AccountMeta::new(programdata_address, false),
-                AccountMeta::new(*program_address, false),
-                AccountMeta::new(*buffer_address, false),
-                AccountMeta::new(*spill_address, false),
-                AccountMeta::new_readonly(sysvar::rent::id(), false),
-                AccountMeta::new_readonly(sysvar::clock::id(), false),
-                AccountMeta::new_readonly(*authority_address, true),
-            ],
-        )
+    DeserializeMessage {
+        /// Optionally supply the IDL filepath. Otherwise, the IDL data is fetched on-chain.
+        #[clap(long)]
+        idl: Option<String>,
+        /// Base58-encoded transaction message.
+        b58_message: String,
+        /// Optionally write the data to a file as JSON.
+        #[clap(long)]
+        outfile: Option<String>,
     }
-    let final_message = Message::new_with_blockhash(
-        &[bpf_loader_upgradeable::upgrade(
-            program_id,
-            buffer_pubkey,
-            &upgrade_authority.pubkey(),
-            &config.signers[0].pubkey(),
-        )],
-        Some(&config.signers[0].pubkey()),
-        &blockhash,
-    );
-    */
 }
 
 fn main() -> Result<()> {

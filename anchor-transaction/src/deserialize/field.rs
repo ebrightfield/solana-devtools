@@ -104,11 +104,11 @@ pub fn deserialize_idl_type(
         }
         IdlType::Option(idl_type) => {
             let is_some: bool = borsh::BorshDeserialize::deserialize(raw_data)?;
-            let value = deserialize_idl_type(idl_type, type_defs, raw_data)?;
-            if is_some {
-                return Ok(Some(value).into());
+            return if is_some {
+                let value = deserialize_idl_type(idl_type, type_defs, raw_data)?;
+                Ok(Some(value).into())
             } else {
-                return Ok(None::<Value>.into());
+                Ok(None::<Value>.into())
             }
         }
         IdlType::Vec(idl_type) => {
@@ -157,10 +157,7 @@ pub fn deserialize_idl_fields(
     let mut map = serde_json::Map::default();
     for field in fields {
         let deserialized = deserialize_idl_type(&field.ty, &idl.types, data)
-            .map_err(|e| {
-                println!("{:?}", e);
-                e
-            })?;
+            .map_err(|e| anyhow!("Failed to deserialize field {:?}, {}", field, e))?;
         map.insert(
             field.name.clone(),
             deserialized,

@@ -3795,6 +3795,7 @@ dependencies = [
  "anchor-transaction-deser",
  "anyhow",
  "base58",
+ "bincode 1.3.3",
  "clap 3.2.23",
  "serde_json",
  "solana-clap-v3-utils",
