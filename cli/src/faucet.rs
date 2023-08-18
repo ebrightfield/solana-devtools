@@ -60,7 +60,9 @@ pub enum FaucetSubcommand {
         /// The amount to airdrop. Not a decimal value. It's in "lamports" of the SPL mint.
         amount: u64,
     },
+    /// Display information about a particular SPL Faucet
     Show {
+        /// The faucet address
         faucet: String,
     }
     //Close,
@@ -209,10 +211,6 @@ impl FaucetSubcommand {
                         &mint,
                         &Token::id(),
                     ));
-                // } else {
-                //     println!("Associated token account found. \
-                // Create one with the `init-ata` subcommand, then rerun this subcommand.");
-                //     return Ok(());
                 }
 
                 ixs.push(mint_tokens_instruction(

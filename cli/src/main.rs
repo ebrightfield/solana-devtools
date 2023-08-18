@@ -24,6 +24,7 @@ use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
 use crate::faucet::FaucetSubcommand;
 use crate::name_service::NameServiceSubcommand;
 
+/// CLI for an improved Solana DX
 #[derive(Debug, Parser)]
 struct Opt {
     #[clap(flatten)]
@@ -284,6 +285,7 @@ enum Subcommand {
         /// Account address
         address: String,
     },
+    /// Deserialize an unsigned transaction message encoded in Base58
     DeserializeMessage {
         /// Optionally supply the IDL filepath. Otherwise, the IDL data is fetched on-chain.
         #[clap(long)]
