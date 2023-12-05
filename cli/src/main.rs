@@ -46,7 +46,7 @@ impl Opt {
                 let owner = if let Some(path) = owner {
                     pubkey_from_path(
                         &matches,
-                        &mint,
+                        &path,
                         "keypair",
                         &mut None
                     ).map_err(|_| anyhow!("Invalid pubkey or path: {}", path))?
