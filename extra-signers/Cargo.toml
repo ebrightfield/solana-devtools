@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-signers"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "An assortment of useful signer types for Solana development"
 
@@ -9,8 +9,8 @@ name = "usb"
 
 [dependencies]
 anyhow = "1.0.68"
-solana-sdk = "1.14"
-solana-program = "1.14"
-solana-remote-wallet = "1.14"
-solana-clap-v3-utils = "1.14"
+solana-sdk = { workspace = true }
+solana-program = { workspace = true }
+solana-remote-wallet = { workspace = true }
+solana-clap-v3-utils = { workspace = true }
 uriparse = "0.6.4"

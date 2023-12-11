@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-rpc"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -12,13 +12,13 @@ reqwest = "0.11.12"
 async-trait = "0.1.58"
 log = "0.4.17"
 tokio = "1.14.1"
-solana-sdk = "1.14"
-solana-client = "1.14"
-solana-version = "1.14"
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-version = { workspace = true }
 
 [dev-dependencies]
 jsonrpc-core = "18.0.0"
-solana-client = "1.14"
+solana-client = { workspace = true }
 jsonrpc-http-server = "18.0.0"
 crossbeam-channel = "0.5"
 futures = "0.3"

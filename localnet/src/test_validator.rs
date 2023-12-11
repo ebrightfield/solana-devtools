@@ -5,18 +5,12 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anchor_cli::config::{Config, ConfigOverride, TestConfig, TestValidator, WithPath};
-use anchor_client::Cluster;
 use solana_client::rpc_client::RpcClient;
 use anyhow::{anyhow, Result};
 use solana_program::bpf_loader_upgradeable;
 use solana_program::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::signature::Signer;
-use crate::idl::{IdlTestMetadata, on_chain_idl_account_data};
-use crate::LocalnetAccount;
-use anchor_lang::AccountSerialize;
-use anchor_lang::idl::IdlAccount;
 use crate::from_anchor::cli::{start_test_validator, stream_logs, test_validator_rpc_url};
 
 
@@ -28,11 +22,8 @@ use crate::from_anchor::cli::{start_test_validator, stream_logs, test_validator_
 /// but it handles the IDL accounts differently.
 /// It could be DRYed, but it's not straightforward
 fn validator_flags(
-    cfg: &WithPath<Config>,
     test_validator: &Option<TestValidator>,
-    skip_project_programs: bool,
 ) -> Result<Vec<String>> {
-    let programs = cfg.programs.get(&Cluster::Localnet);
 
     // On-chain IDL accounts are written here.
     if !PathBuf::from("target/idl-account").exists() {
@@ -40,50 +31,6 @@ fn validator_flags(
     }
 
     let mut flags = Vec::new();
-    if !skip_project_programs {
-        for mut program in cfg.read_all_programs()? {
-            let binary_path = program.binary_path().display().to_string();
-
-            // Use the [programs.cluster] override and fallback to the keypair
-            // files if no override is given.
-            let address: Pubkey = programs
-                .and_then(|m| m.get(&program.lib_name))
-                .map(|deployment| Ok(deployment.address))
-                .unwrap_or_else(|| program.pubkey())?;
-
-            flags.push("--bpf-program".to_string());
-            flags.push(address.clone().to_string());
-            flags.push(binary_path);
-
-            if let Some(idl) = program.idl.as_mut() {
-                // Write the on-chain IDL account to a file and add it as an `--account` flag.
-                let idl_account_data = on_chain_idl_account_data(
-                    &program.path.join("src/lib.rs").as_os_str().to_str().unwrap())?;
-                let header = IdlAccount {
-                    authority: cfg.wallet_kp()?.pubkey(),
-                    data_len: idl_account_data.len() as u32,
-                };
-                let mut account_data = Vec::new();
-                header.try_serialize(&mut account_data).unwrap();
-                account_data.extend(idl_account_data);
-                let localnet_idl_act = LocalnetAccount::new_raw(
-                    IdlAccount::address(&address),
-                    program.lib_name + "-account.json",
-                    account_data,
-                )
-                    .set_owner(address.clone());
-                localnet_idl_act.write_to_validator_json_file("target/idl-account")?;
-                flags.push("--account".to_string());
-                flags.push(localnet_idl_act.address.to_string());
-                flags.push(("target/idl-account/".to_string() + &localnet_idl_act.name)
-                    .as_str().to_string()
-                );
-                // Add program address to the IDL JSON file.
-                // This is used during shutdown to log transactions.
-                IdlTestMetadata { address: address.to_string() }.write_to_file(idl)?;
-            }
-        }
-    }
 
     if let Some(test) = test_validator.as_ref() {
         if let Some(genesis) = &test.genesis {
@@ -185,7 +132,7 @@ fn validator_flags(
 }
 
 
-pub fn localnet_from_test_config(test_config: TestConfig, flags: Vec<String>, skip_project_programs: bool) -> Result<()> {
+pub fn localnet_from_test_config(test_config: TestConfig, flags: Vec<String>) -> Result<()> {
     for (_, test_toml) in &*test_config {
         // Copy the test suite into the Anchor [Config].
         // Set the startup_wait to zero, since it's irrelevant when we aren't running tests.
@@ -206,8 +153,7 @@ pub fn localnet_from_test_config(test_config: TestConfig, flags: Vec<String>, sk
         let with_path = &WithPath::new(
             anchor_cfg, PathBuf::from("./Anchor.toml"));
         // Gather the CLI flags
-        let mut cfg_flags = validator_flags(
-            &with_path, &test_toml.test, skip_project_programs)?;
+        let mut cfg_flags = validator_flags(&test_toml.test)?;
         cfg_flags.extend(flags);
         // Start the validator
         let mut validator_handle = start_test_validator(

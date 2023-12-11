@@ -62,7 +62,7 @@ impl TypeDefinitionDeserializer {
                 EnumFields::Named(idl_fields) => Ok(self.deserialize_idl_fields(idl_fields, data)?),
                 // A variant with unnamed tuple fields.
                 EnumFields::Tuple(idl_types) => {
-                    let mut data = data.clone();
+                    let mut data = data;
                     let deserialized =
                         deserialize_idl_types(idl_types, &self.idl_type_defs, &mut data)?;
                     Ok(json!({

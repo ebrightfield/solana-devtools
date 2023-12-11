@@ -127,7 +127,7 @@ impl Opt {
                     &Signature::from_str(&txid)?,
                     RpcTransactionConfig {
                         commitment: Some(commitment),
-                        //encoding: Some(),
+                        max_supported_transaction_version: Some(0),
                         ..Default::default()
                     }
                 )?;

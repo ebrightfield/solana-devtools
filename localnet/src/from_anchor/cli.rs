@@ -10,7 +10,7 @@ use std::io::Read;
 use solana_sdk::signature::Signer;
 use crate::idl::IdlTestMetadata;
 
-pub fn stream_logs(config: &WithPath<Config>, rpc_url: &str) -> anyhow::Result<Vec<std::process::Child>> {
+pub fn stream_logs(config: &WithPath<Config>, rpc_url: &str) -> anyhow::Result<Vec<Child>> {
     let program_logs_dir = ".anchor/program-logs";
     if Path::new(program_logs_dir).exists() {
         fs::remove_dir_all(program_logs_dir)?;
