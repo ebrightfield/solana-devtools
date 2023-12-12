@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use anchor_cli::config::{Manifest, Program};
+use anchor_cli::config::Program;
 use anchor_syn::idl::Idl;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -12,10 +12,13 @@ use serde::{Deserialize, Serialize};
 /// Serialize and compress the idl.
 pub fn on_chain_idl_account_data(idl_file: &str) -> Result<Vec<u8>> {
     let file = shellexpand::tilde(idl_file);
-    let manifest_from_path = std::env::current_dir()?.join(PathBuf::from(&*file).parent().unwrap());
-    let cargo = Manifest::discover_from_path(manifest_from_path)?
-        .ok_or_else(|| anyhow!("Cargo.toml not found"))?;
-    let idl = anchor_syn::idl::file::parse(&*file, cargo.version(), false, false, false)?
+    let idl = anchor_syn::idl::file::parse(
+        &*file,
+        "0.0.0".to_string(),
+        false,
+        false,
+        false,
+    )?
         .ok_or(anyhow!("Failed to parse idl: {}", file))?;
     let json_bytes = serde_json::to_vec(&idl)?;
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
