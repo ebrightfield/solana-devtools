@@ -1,8 +1,7 @@
 pub mod discriminators;
 
-use anchor_lang::idl::IdlAccount;
 use anyhow::anyhow;
-use borsh::BorshDeserialize as AnchorDeserialize;
+use borsh::BorshDeserialize;
 use flate2::read::ZlibDecoder;
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
@@ -32,7 +31,7 @@ pub fn fetch_idl(client: &RpcClient, idl_addr: &Pubkey) -> anyhow::Result<IdlWit
     }
     // Cut off account discriminator.
     let mut d: &[u8] = &account.data[8..];
-    let idl_account: IdlAccount = AnchorDeserialize::deserialize(&mut d)?;
+    let idl_account: IdlAccount = BorshDeserialize::deserialize(&mut d)?;
 
     let compressed_len: usize = idl_account.data_len.try_into().unwrap();
     let compressed_bytes = &account.data[44..44 + compressed_len];
@@ -42,4 +41,25 @@ pub fn fetch_idl(client: &RpcClient, idl_addr: &Pubkey) -> anyhow::Result<IdlWit
     let idl = serde_json::from_slice(&s[..])
         .map_err(|_| anyhow!("Could not deserialize decompressed IDL data"))?;
     Ok(IdlWithDiscriminators::new(idl))
+}
+
+
+#[derive(BorshDeserialize)]
+pub struct IdlAccount {
+    // Address that can modify the IDL.
+    pub authority: Pubkey,
+    // Length of compressed idl bytes.
+    pub data_len: u32,
+    // Followed by compressed idl bytes.
+}
+
+impl IdlAccount {
+    pub fn address(program_id: &Pubkey) -> Pubkey {
+        let program_signer = Pubkey::find_program_address(&[], program_id).0;
+        Pubkey::create_with_seed(&program_signer, IdlAccount::seed(), program_id)
+            .expect("Seed is always valid")
+    }
+    pub fn seed() -> &'static str {
+        "anchor:idl"
+    }
 }
