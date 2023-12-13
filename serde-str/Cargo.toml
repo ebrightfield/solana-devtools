@@ -1,0 +1,8 @@
+[package]
+name = "solana-devtools-serde"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+solana-sdk = { workspace = true }
+serde = "1.0.156"

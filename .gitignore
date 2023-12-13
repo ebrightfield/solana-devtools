@@ -2,4 +2,7 @@
 .anchor
 test-ledger
 target
-tests/project/tests/*
+tests/example_project/tests/suite-1/*.json
+tests/example_project/tests/suite-2/*.json
+tests/example_project/target
+tests/example_project/test-ledger

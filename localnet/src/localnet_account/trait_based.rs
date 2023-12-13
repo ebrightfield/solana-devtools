@@ -2,11 +2,11 @@ use anchor_lang::{AccountDeserialize, AccountSerialize};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::account::Account;
 use solana_program::clock::Epoch;
-use anyhow::Result;
 use solana_program::pubkey::Pubkey;
 use solana_program::system_program;
 use crate::localnet_account::THOUSAND_SOL;
 use crate::LocalnetAccount;
+use crate::error::{LocalnetConfigurationError, Result};
 
 /// Create account data wholecloth, from any type that implements
 /// [anchor_lang::AccountSerialize] and [anchor_lang::AccountDeserialize].
@@ -44,7 +44,7 @@ pub trait GeneratedAccount {
         LocalnetAccount {
             address: self.address(),
             lamports: self.lamports(),
-            account_data: buf,
+            data: buf,
             owner: self.owner(),
             executable: self.executable(),
             rent_epoch: self.rent_epoch(),
@@ -61,7 +61,7 @@ impl<T: GeneratedAccount> From<&T> for LocalnetAccount {
         LocalnetAccount {
             address: value.address(),
             lamports: value.lamports(),
-            account_data: buf,
+            data: buf,
             owner: value.owner(),
             executable: value.executable(),
             rent_epoch: value.rent_epoch(),
@@ -90,9 +90,11 @@ pub trait ClonedAccount {
     fn fetch_and_modify_data(&self, client: &RpcClient) -> Result<(Account, Self::Data)> {
         let address = self.address();
         let info = client
-            .get_account(&address)?;
+            .get_account(&address)
+            .map_err(|e| LocalnetConfigurationError::ClonedAccountRpcError(e))?;
         let deserialized = Self::Data::try_deserialize(
-            &mut info.data.as_slice())?;
+            &mut info.data.as_slice())
+            .map_err(|e| LocalnetConfigurationError::AnchorAccountError(e))?;
         Ok((info, self.modify(deserialized)))
     }
 
@@ -103,7 +105,7 @@ pub trait ClonedAccount {
         Ok(LocalnetAccount {
             address: self.address(),
             lamports: act.lamports,
-            account_data: buf,
+            data: buf,
             owner: act.owner,
             executable: act.executable,
             rent_epoch: act.rent_epoch,

@@ -1,14 +1,20 @@
+use core::ops::Deref;
+use std::collections::HashMap;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::program_option::COption;
+use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
-use spl_token::solana_program::program_option::COption;
-use solana_devtools_localnet::from_anchor::token::{TokenAccount, Mint};
-use solana_devtools_localnet::{TestTomlGenerator, LocalnetAccount, SystemAccount};
+use solana_devtools_localnet::{LocalnetAccount, LocalnetConfiguration};
+use solana_devtools_localnet::localnet_account::system_account::SystemAccount;
+use solana_devtools_localnet::localnet_account::token::{Mint, TokenAccount};
 
-pub fn suite_1() -> TestTomlGenerator {
-    TestTomlGenerator {
-        save_directory: "./tests/suite-1".to_string(),
-        accounts: accounts(),
-        ..Default::default()
-    }
+
+pub fn suite_2() -> LocalnetConfiguration {
+    LocalnetConfiguration::new(
+        accounts(),
+        HashMap::new(),
+        Some("./tests/suite-2".to_string()),
+    ).unwrap()
 }
 
 pub fn accounts() -> Vec<LocalnetAccount> {
@@ -27,7 +33,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             is_initialized: true,
             freeze_authority: COption::Some(test_user.address),
         })
-    );
+    ).set_owner(spl_token::ID);
     let test_token_account = LocalnetAccount::new(
         Pubkey::new_unique(),
         "test_user_token_act.json".to_string(),
@@ -41,10 +47,21 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             delegated_amount: 0,
             close_authority: COption::Some(test_user.address)
         })
-    );
+    ).set_owner(spl_token::ID);
+    let usdc = LocalnetAccount::new_from_clone(
+        &pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+        &RpcClient::new("https://api.mainnet-beta.solana.com".to_string()),
+        "usdc_mint.json".to_string(),
+        Some(|mint: Mint| {
+            let mut mint: spl_token::state::Mint = mint.deref().clone();
+            mint.mint_authority = COption::Some(test_user.address.clone());
+            Mint::from(mint)
+        })
+    ).unwrap();
     vec![
         test_user,
         test_mint,
+        usdc,
         test_token_account,
     ]
 }

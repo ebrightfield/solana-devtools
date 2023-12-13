@@ -7,12 +7,9 @@ edition = "2021"
 anyhow = "1.0.58"
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }
-solana-clap-v3-utils = { workspace = true }
-solana-cli-config = { workspace = true }
 spl-token-faucet = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 anchor-spl = { workspace = true }
 anchor-lang = { workspace = true }
 clap = { workspace = true }
-solana-devtools-cli-config = { path = "../cli-config" }

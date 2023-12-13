@@ -1,19 +1,21 @@
-use core::ops::Deref;
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::program_option::COption;
+use std::collections::HashMap;
 use solana_sdk::pubkey;
+use solana_devtools_localnet::{LocalnetAccount, LocalnetConfiguration};
+use solana_devtools_localnet::localnet_account::system_account::SystemAccount;
+use solana_devtools_localnet::localnet_account::token::{Mint, TokenAccount};
 use solana_sdk::pubkey::Pubkey;
-use solana_devtools_localnet::from_anchor::token::{TokenAccount, Mint};
-use solana_devtools_localnet::{TestTomlGenerator, LocalnetAccount, SystemAccount};
+use spl_token::solana_program::program_option::COption;
 
+const TEST_MINT: Pubkey = pubkey!("9WQV5oLq9ykMrqSj6zWrazr3SjFzbESXcVwZYttsd7XM");
 
-pub fn suite_2() -> TestTomlGenerator {
-    TestTomlGenerator {
-        save_directory: "./tests/suite-2".to_string(),
-        test_file_glob: Some("./tests/suite-2/test.ts".to_string()),
-        accounts: accounts(),
-        ..Default::default()
-    }
+pub fn suite_1() -> LocalnetConfiguration {
+    let mut programs = HashMap::new();
+    programs.insert(test_program::ID, "target/deploy/test_program.so".to_string());
+    LocalnetConfiguration::new(
+        accounts(),
+        programs,
+        Some("./tests/suite-1".to_string()),
+    ).unwrap()
 }
 
 pub fn accounts() -> Vec<LocalnetAccount> {
@@ -23,7 +25,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
         SystemAccount,
     );
     let test_mint = LocalnetAccount::new(
-        Pubkey::new_unique(),
+        TEST_MINT,
         "mint.json".to_string(),
         Mint::from(spl_token::state::Mint {
             mint_authority: COption::Some(test_user.address),
@@ -32,7 +34,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             is_initialized: true,
             freeze_authority: COption::Some(test_user.address),
         })
-    );
+    ).set_owner(spl_token::ID);
     let test_token_account = LocalnetAccount::new(
         Pubkey::new_unique(),
         "test_user_token_act.json".to_string(),
@@ -46,21 +48,10 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             delegated_amount: 0,
             close_authority: COption::Some(test_user.address)
         })
-    );
-    let usdc = LocalnetAccount::new_from_clone(
-        &pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-        &RpcClient::new("https://api.mainnet-beta.solana.com".to_string()),
-        "usdc_mint.json".to_string(),
-        Some(|mint: Mint| {
-            let mut mint: spl_token::state::Mint = mint.deref().clone();
-            mint.mint_authority = COption::Some(test_user.address.clone());
-            Mint::from(mint)
-        })
-    ).unwrap();
+    ).set_owner(spl_token::ID);
     vec![
         test_user,
         test_mint,
-        usdc,
         test_token_account,
     ]
 }
