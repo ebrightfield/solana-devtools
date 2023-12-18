@@ -20,7 +20,7 @@ impl Into<Account> for &SplProgram {
             data: self.data.clone(),
             owner: self.owner,
             executable: self.executable,
-            rent_epoch: 0,
+            rent_epoch: 1,
         }
     }
 }

@@ -7,7 +7,7 @@ use spl_token::solana_program::program_option::COption;
 
 /// Use const values if you want to keep values fixed across test builds.
 /// Otherwise `Pubkey::new_unique()` suffices.
-const TEST_MINT: Pubkey = pubkey!("9WQV5oLq9ykMrqSj6zWrazr3SjFzbESXcVwZYttsd7XM");
+pub const TEST_MINT: Pubkey = pubkey!("9WQV5oLq9ykMrqSj6zWrazr3SjFzbESXcVwZYttsd7XM");
 
 pub struct Payer;
 impl GeneratedAccount for Payer {

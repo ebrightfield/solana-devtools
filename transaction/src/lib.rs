@@ -2,7 +2,7 @@
 /// Implementing [TransactionSchema] allows for a number of
 /// approaches to processing the transaction.
 use solana_sdk::hash::Hash;
-use solana_sdk::instruction::Instruction;
+use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::message::{Message, SanitizedMessage, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 #[cfg(feature = "client")]
@@ -140,6 +140,31 @@ where
     }
 }
 
+/// [Transaction] objects do not have setters,
+/// so it is useful to be able to extract the instructions to replace
+/// replace payer, signer, or blockhash, or apply [TransactionSchema] methods.
+pub fn extract_instructions(tx: Transaction) -> Vec<Instruction> {
+    let message = SanitizedMessage::try_from(tx.message).unwrap();
+    message
+        .decompile_instructions()
+        .iter()
+        .map(|ix| {
+            Instruction::new_with_bytes(
+                *ix.program_id,
+                ix.data,
+                ix.accounts
+                    .iter()
+                    .map(|act| AccountMeta {
+                        pubkey: *act.pubkey,
+                        is_signer: act.is_signer,
+                        is_writable: act.is_writable,
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,15 +190,15 @@ mod tests {
 
     #[test]
     fn memo_type() {
-        let memo = MemoType(String::from("foo"));
+        let memo = &MemoType(String::from("foo"));
         let key = Keypair::new();
-        let _ = (&memo).transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
-        let _ = (&memo).signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
-        let _ = (&memo).message(None);
-        let _ = (&memo).unsigned_transaction(None);
-        let _ = (&memo).unsigned_serialized(None);
-        let _ = (&memo).instructions();
-        let _ = (&memo).instructions_serialized();
+        let _ = memo.transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = memo.signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = memo.message(None);
+        let _ = memo.unsigned_transaction(None);
+        let _ = memo.unsigned_serialized(None);
+        let _ = memo.instructions();
+        let _ = memo.instructions_serialized();
     }
 
     #[test]
@@ -196,16 +221,45 @@ mod tests {
 
     #[test]
     fn unit_struct() {
-        let unit_struct = UnitStruct;
+        let unit_struct = &UnitStruct;
         let key = Keypair::new();
 
-        let _ = (&unit_struct).transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
-        let _ =
-            (&unit_struct).signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
-        let _ = (&unit_struct).message(None);
-        let _ = (&unit_struct).unsigned_transaction(None);
-        let _ = (&unit_struct).unsigned_serialized(None);
-        let _ = (&unit_struct).instructions();
-        let _ = (&unit_struct).instructions_serialized();
+        let _ = unit_struct.transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = unit_struct.signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = unit_struct.message(None);
+        let _ = unit_struct.unsigned_transaction(None);
+        let _ = unit_struct.unsigned_serialized(None);
+        let _ = unit_struct.instructions();
+        let _ = unit_struct.instructions_serialized();
+    }
+
+    #[test]
+    fn tx() {
+        let keypair = Keypair::new();
+        let tx = Transaction::new_signed_with_payer(
+            &vec![build_memo(b"hello world", &[])],
+            Some(&keypair.pubkey()),
+            &[&keypair],
+            Hash::new_unique(),
+        );
+        let ixs = extract_instructions(tx);
+
+        let new_signer = Keypair::new();
+
+        let _ = ixs.transaction(
+            Hash::new_unique(),
+            Some(&new_signer.pubkey()),
+            &vec![&new_signer],
+        );
+        let _ = ixs.signed_serialized(
+            Hash::new_unique(),
+            Some(&new_signer.pubkey()),
+            &vec![&new_signer],
+        );
+        let _ = ixs.message(None);
+        let _ = ixs.unsigned_transaction(None);
+        let _ = ixs.unsigned_serialized(None);
+        let _ = ixs.instructions();
+        let _ = ixs.instructions_serialized();
     }
 }

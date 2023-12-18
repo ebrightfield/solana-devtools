@@ -118,11 +118,34 @@ impl MockSolanaRuntime {
             Vec::with_capacity(msg.account_keys().len() + msg.instructions().len() * 2);
 
         for &key in msg.account_keys().iter() {
+            // Sysvars
             if solana_sdk::sysvar::instructions::check_id(&key) {
                 let acc = Account {
                     data: construct_instructions_data(&msg.decompile_instructions()).into(),
                     owner: sysvar::id(),
                     ..Default::default()
+                };
+                accounts.push((key, acc.into()));
+                continue;
+            }
+            if solana_sdk::sysvar::clock::check_id(&key) {
+                let data = self.sysvar_cache.get_clock().unwrap();
+                let acc = Account {
+                    data: bincode::serialize(&data).unwrap(),
+                    owner: sysvar::id(),
+                    ..Default::default()
+                };
+                accounts.push((key, acc.into()));
+                continue;
+            }
+            if solana_sdk::sysvar::rent::check_id(&key) {
+                let data = self.sysvar_cache.get_rent().unwrap();
+                let acc = Account {
+                    lamports: 1009200,
+                    data: bincode::serialize(&data).unwrap(),
+                    owner: sysvar::id(),
+                    rent_epoch: 361,
+                    executable: false,
                 };
                 accounts.push((key, acc.into()));
                 continue;

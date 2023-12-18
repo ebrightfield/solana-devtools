@@ -1,13 +1,14 @@
-use anchor_lang::InstructionData;
+use anchor_lang::{InstructionData, ToAccountMetas};
 use lazy_static::lazy_static;
-use solana_mock_runtime::MockSolanaRuntime;
 use solana_devtools_localnet::{GeneratedAccount, LocalnetConfiguration};
 use solana_devtools_tx::TransactionSchema;
+use solana_mock_runtime::MockSolanaRuntime;
 use solana_sdk::instruction::{Instruction, InstructionError};
 use solana_sdk::transaction::TransactionError;
-use solana_sdk::{pubkey, system_instruction};
+use solana_sdk::{pubkey, system_instruction, sysvar};
+use spl_associated_token_account::get_associated_token_address;
 use spl_token::solana_program::pubkey::Pubkey;
-use test_localnet::suite_one::{configuration, Payer};
+use test_localnet::suite_one::{configuration, Payer, TEST_MINT};
 
 // We can load the configuration just once and re-use it for many tests.
 lazy_static! {
@@ -17,6 +18,8 @@ lazy_static! {
     };
 }
 
+/// Used below to demonstrate the control over whether to persist changes to account state
+/// after processing messages.
 const REUSED_PUBKEY: Pubkey = pubkey!("FgoH9wNBfW18Teg1aN7H3uhUiu8QkPK3jbC3MRJioh26");
 
 #[test]
@@ -27,18 +30,35 @@ fn test1() {
         system_instruction::create_account(
             &Payer.address(),
             &REUSED_PUBKEY,
-            1000,
-            100,
-            &Pubkey::default(),
+            2_000_000,
+            82,
+            &spl_token::ID,
         ),
+        spl_token::instruction::initialize_mint2(
+            &spl_token::ID,
+            &REUSED_PUBKEY,
+            &Payer.address(),
+            None,
+            5,
+        ).unwrap(),
         Instruction::new_with_bytes(
             test_program::ID,
             &test_program::instruction::Initialize {}.data(),
-            vec![],
+            test_program::accounts::Initialize {
+                mint: TEST_MINT,
+                new_account: get_associated_token_address(&Payer.address(), &TEST_MINT),
+                owner: Payer.address(),
+                token_program: spl_token::ID,
+                associated_token_program: spl_associated_token_account::ID,
+                system_program: Pubkey::default(),
+                rent: sysvar::rent::ID,
+            }
+            .to_account_metas(None),
         ),
     ]
     .sanitized_message(Some(&Payer.address()));
     let result = mock_runtime.process(&msg).unwrap();
+    //println!("{:#?}", result.logs);
     assert!(result.execution_error.is_none());
     // Since the previous call does not save account mutations,
     // this second call will not fail with "AccountAlreadyExists".
@@ -61,14 +81,9 @@ fn test2() {
         system_instruction::create_account(
             &Payer.address(),
             &REUSED_PUBKEY,
-            1000,
-            100,
+            1_000_000,
+            10,
             &Pubkey::default(),
-        ),
-        Instruction::new_with_bytes(
-            test_program::ID,
-            &test_program::instruction::Initialize {}.data(),
-            vec![],
         ),
     ]
     .sanitized_message(Some(&Payer.address()));

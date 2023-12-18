@@ -60,6 +60,12 @@ impl MockSolanaRuntime {
         clock.slot = 1;
         sysvar_cache.set_clock(clock);
 
+        let mut rent = Rent::default();
+        rent.lamports_per_byte_year = 3480;
+        rent.burn_percent = 100;
+        rent.exemption_threshold = 2.0;
+        sysvar_cache.set_rent(rent);
+
         Ok(Self {
             cached_accounts: Default::default(),
             sysvar_cache,
@@ -118,6 +124,10 @@ impl MockSolanaRuntime {
             clock.unix_timestamp = unix_timestamp;
         }
         self.sysvar_cache.set_clock(clock);
+    }
+
+    pub fn update_rent(&mut self, rent: Rent) {
+        self.sysvar_cache.set_rent(rent);
     }
 }
 
