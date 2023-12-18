@@ -12,8 +12,8 @@ pub enum LocalnetConfigurationError {
     DuplicateAccountPubkey(Vec<String>),
     #[error("Duplicate account names: {0:?}")]
     DuplicateAccountName(Vec<String>),
-    #[error("Duplicate program pubkeys: {0:?}")]
-    DuplicateProgramPubkey(Vec<String>),
+    #[error("Duplicate program: {0:?}")]
+    DuplicateProgramPubkey(String),
     #[error("Could not parse account JSON: {0}")]
     InvalidAccountJson(serde_json::Error),
     #[error("Could not parse base58 account data: {0}")]
@@ -32,4 +32,6 @@ pub enum LocalnetConfigurationError {
     IdlSerializationError(serde_json::Error),
     #[error("Failed to compress IDL bytes: {0}")]
     IdlCompressionError(std::io::Error),
+    #[error("Failed to create a BPF runtime environment: {0}")]
+    EbpfError(String),
 }

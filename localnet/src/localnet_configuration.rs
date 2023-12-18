@@ -1,12 +1,21 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use crate::localnet_account::{LocalnetAccount, UiAccountWithAddr};
+#[cfg(feature = "mock-runtime")]
+use solana_mock_runtime::MockSolanaRuntime;
 use solana_program::pubkey::Pubkey;
+#[cfg(feature = "mock-runtime")]
+use solana_sdk::{
+    account::{Account, AccountSharedData},
+    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
+};
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::fs::{read_dir, File};
-use std::hash::Hash;
-use std::path::Path;
-use std::process::{Child, Stdio};
+#[cfg(feature = "mock-runtime")]
+use std::io::Read;
+use std::{
+    fs::{self, read_dir, File},
+    path::Path,
+    process::{Child, Stdio},
+};
 
 /// Beginning of JS file, to construct `anchor.web3.PublicKey` instances.
 const JS_ANCHOR_IMPORT: &str = "import * as anchor from \"@project-serum/anchor\";\n";
@@ -30,35 +39,15 @@ pub struct LocalnetConfiguration {
 }
 
 impl LocalnetConfiguration {
-    pub fn new(
-        accounts: Vec<LocalnetAccount>,
-        programs: HashMap<Pubkey, String>,
-        json_outdir: Option<String>,
-    ) -> Result<Self> {
-        let account_names = accounts
-            .iter()
-            .map(|act| act.name.clone())
-            .collect::<Vec<_>>();
-        let duplicate_names = retain_duplicates::<String>(&account_names);
-        if !duplicate_names.is_empty() {
-            return Err(LocalnetConfigurationError::DuplicateAccountName(
-                duplicate_names,
-            ));
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_outdir(json_outdir: &str) -> Self {
+        Self {
+            json_outdir: Some(json_outdir.to_string()),
+            ..Default::default()
         }
-        let pubkeys = accounts.iter().map(|p| p.address).collect::<Vec<_>>();
-        let duplicate_pubkeys = retain_duplicates::<Pubkey>(&pubkeys);
-        if !duplicate_pubkeys.is_empty() {
-            let dup = duplicate_pubkeys.iter().map(|p| p.to_string()).collect();
-            return Err(LocalnetConfigurationError::DuplicateAccountPubkey(dup));
-        }
-        Ok(Self {
-            accounts: HashMap::from_iter(accounts.into_iter().map(|act| (act.address, act))),
-            account_names: HashSet::from_iter(account_names),
-            programs,
-            test_validator_args: Default::default(),
-            test_validator_flags: Default::default(),
-            json_outdir,
-        })
     }
 
     pub fn from_dir<P: AsRef<Path>>(dir: P) -> Result<Self> {
@@ -110,36 +99,52 @@ impl LocalnetConfiguration {
         })
     }
 
-    pub fn add_account(&mut self, act: LocalnetAccount) -> Result<()> {
-        if self.accounts.contains_key(&act.address) {
-            Err(LocalnetConfigurationError::DuplicateAccountPubkey(vec![
-                act.address.to_string(),
-            ]))
-        } else if !self.account_names.insert(act.name.clone()) {
-            Err(LocalnetConfigurationError::DuplicateAccountName(vec![
-                act.name,
-            ]))
-        } else {
-            self.accounts.insert(act.address, act);
-            Ok(())
-        }
-    }
-
-    pub fn add_accounts(&mut self, acts: Vec<LocalnetAccount>) -> Result<()> {
+    /// Add several accounts to the configuration
+    pub fn accounts(mut self, acts: impl IntoIterator<Item = LocalnetAccount>) -> Result<Self> {
         for act in acts {
-            self.add_account(act)?;
+            if self.accounts.contains_key(&act.address) {
+                return Err(LocalnetConfigurationError::DuplicateAccountPubkey(vec![
+                    act.address.to_string(),
+                ]));
+            } else if !self.account_names.insert(act.name.clone()) {
+                return Err(LocalnetConfigurationError::DuplicateAccountName(vec![
+                    act.name,
+                ]));
+            } else {
+                self.accounts.insert(act.address, act);
+            }
         }
-        Ok(())
+        Ok(self)
     }
 
-    pub fn add_program(&mut self, program_id: Pubkey, program_binary_file: String) -> Result<()> {
+    /// If the provided program binary file path is a relative path, it is interpreted
+    /// from the root of the crate being invoked with `cargo`.
+    pub fn program(mut self, program_id: Pubkey, program_binary_file: &str) -> Result<Self> {
+        let program_binary_file = {
+            let path = Path::new(program_binary_file);
+            if path.is_relative() {
+                std::env::var("CARGO_MANIFEST_DIR")
+                    .map(|s| s + "/")
+                    .unwrap_or(String::new())
+                    + program_binary_file
+            } else {
+                program_binary_file.to_string()
+            }
+        };
+
         if self.programs.contains_key(&program_id) {
-            return Err(LocalnetConfigurationError::DuplicateProgramPubkey(vec![
+            return Err(LocalnetConfigurationError::DuplicateProgramPubkey(
                 program_id.to_string(),
-            ]));
+            ));
+        }
+        if File::open(&program_binary_file).is_err() {
+            eprintln!("Working directory: {:?}", std::env::current_dir());
+            return Err(LocalnetConfigurationError::MissingProgramSoFile(
+                program_binary_file,
+            ));
         }
         self.programs.insert(program_id, program_binary_file);
-        Ok(())
+        Ok(self)
     }
 
     pub fn add_test_validator_arg(&mut self, key: String, value: String) {
@@ -154,8 +159,8 @@ impl LocalnetConfiguration {
     /// as the Solana CLI `account` subcommand when using the `--output-format json` arg.
     /// Also the same as the `getAccountInfo` RPC endpoint:
     /// https://docs.solana.com/api/http#getaccountinfo
-    pub fn write_accounts_json(&self, path_prefix: Option<&str>, overwrite: bool) -> Result<()> {
-        let path_prefix = if let Some(dir) = path_prefix {
+    pub fn write_accounts_json(&self, outdir: Option<&str>, overwrite: bool) -> Result<()> {
+        let path_prefix = if let Some(dir) = outdir {
             dir
         } else {
             if let Some(ref dir) = self.json_outdir {
@@ -168,19 +173,6 @@ impl LocalnetConfiguration {
             act.write_to_validator_json_file(&path_prefix, overwrite)?;
         }
         Ok(())
-    }
-
-    pub fn missing_programs(&self) -> Vec<&str> {
-        self.programs
-            .iter()
-            .filter_map(|(_, path)| {
-                if File::open(path).is_err() {
-                    Some(path.as_str())
-                } else {
-                    None
-                }
-            })
-            .collect()
     }
 
     /// Create a file that allows for easy import of the files in this test suite.
@@ -233,6 +225,14 @@ impl LocalnetConfiguration {
             .stderr(Stdio::inherit())
             .spawn()
     }
+
+    pub fn get_account(&self, pubkey: &Pubkey) -> Option<&LocalnetAccount> {
+        self.accounts.get(pubkey)
+    }
+
+    pub fn get_program(&self, pubkey: &Pubkey) -> Option<&str> {
+        self.programs.get(pubkey).map(|path| path.as_str())
+    }
 }
 
 fn dedup_vec(mut vec: Vec<String>) -> Vec<String> {
@@ -240,17 +240,64 @@ fn dedup_vec(mut vec: Vec<String>) -> Vec<String> {
     vec.retain(|e| set.insert(e.clone()));
     vec
 }
+#[cfg(feature = "mock-runtime")]
+impl TryInto<MockSolanaRuntime> for &LocalnetConfiguration {
+    type Error = LocalnetConfigurationError;
 
-fn retain_duplicates<T: Clone + PartialEq + Eq + Hash>(items: &Vec<T>) -> Vec<T> {
-    let mut counts = HashMap::new();
+    fn try_into(self) -> Result<MockSolanaRuntime> {
+        let mut mock_runtime = MockSolanaRuntime::new_with_spl_and_builtins()
+            .map_err(|e| LocalnetConfigurationError::EbpfError(e.to_string()))?;
 
-    // Count the occurrences of each element
-    for item in items.iter() {
-        *counts.entry(item.clone()).or_insert(0u32) += 1;
+        let accounts = accounts_from_localnet_configuration(self)?;
+        mock_runtime.update_accounts(&accounts);
+        Ok(mock_runtime)
     }
+}
 
-    // Retain only elements that have more than one occurrence
-    let mut items = items.clone();
-    items.retain(|item| counts.get(item).map_or(false, |&count| count > 1));
-    items
+#[cfg(feature = "mock-runtime")]
+fn accounts_from_localnet_configuration(
+    localnet_configuration: &LocalnetConfiguration,
+) -> Result<HashMap<Pubkey, AccountSharedData>> {
+    let mut accounts = HashMap::from_iter(
+        localnet_configuration
+            .accounts
+            .iter()
+            .map(|(pubkey, act)| (*pubkey, act.into())),
+    );
+
+    for (program_id, path) in &localnet_configuration.programs {
+        let programdata_address = Pubkey::new_unique();
+        let program: AccountSharedData = Account {
+            lamports: 1,
+            data: bincode::serialize(&UpgradeableLoaderState::Program {
+                programdata_address,
+            })
+            .unwrap(),
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+        accounts.insert(*program_id, program);
+
+        let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+            slot: 0,
+            upgrade_authority_address: None,
+        })
+        .unwrap();
+        data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+        let _ = File::open(&path)
+            .map(|mut f| f.read_to_end(&mut data))
+            .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
+        let program_data = Account {
+            lamports: 1,
+            data: data,
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+        accounts.insert(programdata_address, program_data);
+    }
+    Ok(accounts)
 }

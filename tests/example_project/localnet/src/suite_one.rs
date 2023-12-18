@@ -1,21 +1,34 @@
-use std::collections::HashMap;
 use solana_sdk::pubkey;
-use solana_devtools_localnet::{LocalnetAccount, LocalnetConfiguration};
+use solana_devtools_localnet::{GeneratedAccount, LocalnetAccount, LocalnetConfiguration};
 use solana_devtools_localnet::localnet_account::system_account::SystemAccount;
 use solana_devtools_localnet::localnet_account::token::{Mint, TokenAccount};
 use solana_sdk::pubkey::Pubkey;
 use spl_token::solana_program::program_option::COption;
 
+/// Use const values if you want to keep values fixed across test builds.
+/// Otherwise `Pubkey::new_unique()` suffices.
 const TEST_MINT: Pubkey = pubkey!("9WQV5oLq9ykMrqSj6zWrazr3SjFzbESXcVwZYttsd7XM");
 
-pub fn suite_1() -> LocalnetConfiguration {
-    let mut programs = HashMap::new();
-    programs.insert(test_program::ID, "target/deploy/test_program.so".to_string());
-    LocalnetConfiguration::new(
-        accounts(),
-        programs,
-        Some("./tests/suite-1".to_string()),
-    ).unwrap()
+pub struct Payer;
+impl GeneratedAccount for Payer {
+    type Data = SystemAccount;
+
+    fn address(&self) -> spl_token::solana_program::pubkey::Pubkey {
+        pubkey!("9VegcRe98qziwbKWdMQjrraUQB5HFCTW7M2vGbRScpUx")
+    }
+
+    fn generate(&self) -> Self::Data {
+        SystemAccount
+    }
+}
+
+/// Configure different test suites with separate [LocalnetConfiguration] instances.
+pub fn configuration() -> LocalnetConfiguration {
+    LocalnetConfiguration::with_outdir("./tests/suite-1")
+        .accounts(accounts())
+        .unwrap()
+        .program(test_program::ID, "../target/deploy/test_program.so")
+        .unwrap()
 }
 
 pub fn accounts() -> Vec<LocalnetAccount> {
@@ -50,6 +63,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
         })
     ).set_owner(spl_token::ID);
     vec![
+        Payer.to_localnet_account(),
         test_user,
         test_mint,
         test_token_account,

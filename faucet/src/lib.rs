@@ -1,14 +1,14 @@
-use anchor_spl::token::Token;
 use anchor_lang::Id;
+use anchor_spl::token::Token;
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_sdk::account::Account;
 use solana_sdk::instruction::{AccountMeta, Instruction};
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::{pubkey, sysvar};
 use solana_sdk::program_pack::Pack;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_instruction::create_account;
+use solana_sdk::{pubkey, sysvar};
 use spl_token::instruction::initialize_mint;
 use spl_token::state::Mint;
 use spl_token_faucet::state::Faucet;
@@ -24,13 +24,7 @@ pub fn init_faucet_mint(mint: Pubkey, payer: Pubkey, decimals: u8) -> Vec<Instru
     let space = Mint::LEN;
     //let rent = 696*space + 89088;
     let rent = 1461600u64;
-    let ix1 = create_account(
-        &payer,
-        &mint,
-        rent,
-        space as u64,
-        &Token::id(),
-    );
+    let ix1 = create_account(&payer, &mint, rent, space as u64, &Token::id());
     let ix2 = initialize_mint(&Token::id(), &mint, &FAUCET_MINT_AUTH, None, decimals).unwrap();
     vec![ix1, ix2]
 }
@@ -40,13 +34,7 @@ pub fn init_faucet_account(faucet: Pubkey, payer: Pubkey) -> Instruction {
     let space = Faucet::get_packed_len();
     //let rent = 696*space + 89088;
     let rent = 1426800u64;
-    create_account(
-        &payer,
-        &faucet,
-        rent as u64,
-        space as u64,
-        &FAUCET_PROGRAM,
-    )
+    create_account(&payer, &faucet, rent as u64, space as u64, &FAUCET_PROGRAM)
 }
 
 // TODO Admin
@@ -110,9 +98,10 @@ pub fn find_faucet(
     let addresses = client.get_program_accounts_with_config(
         &program_id.unwrap_or(FAUCET_PROGRAM),
         RpcProgramAccountsConfig {
-            filters: Some(vec![RpcFilterType::Memcmp(
-                Memcmp::new_base58_encoded(45, mint.as_ref())
-            )]),
+            filters: Some(vec![RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
+                45,
+                mint.as_ref(),
+            ))]),
             account_config: Default::default(),
             with_context: None,
         },

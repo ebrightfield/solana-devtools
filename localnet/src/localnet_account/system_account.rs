@@ -1,7 +1,7 @@
-use solana_program::pubkey::Pubkey;
 use anchor_lang::prelude::System;
-use std::io::Write;
 use anchor_lang::Id;
+use solana_program::pubkey::Pubkey;
+use std::io::Write;
 
 /// Use this struct as type T for any [GeneratedAccount] or [ClonedAccount]
 /// owned by `SystemProgram` (e.g. typical user accounts).

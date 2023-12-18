@@ -1,3 +1,5 @@
+use serde::Deserialize;
+use serde_json::{json, Value};
 /// Copied and modified [solana-client::http_sender::HttpSender], adds the ability
 /// to provide default HTTP headers such (Bearer auth tokens) to RpcClient.
 /// This has become a feature of using GenesysGo infrastructure.
@@ -6,11 +8,10 @@
 use solana_client;
 use solana_client::client_error::reqwest;
 use solana_client::client_error::reqwest::header::HeaderMap;
-use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
-use serde_json::{json, Value};
+use solana_client::rpc_custom_error as custom_error;
 use solana_client::rpc_request::{RpcError, RpcRequest, RpcResponseErrorData};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
-use solana_client::rpc_custom_error as custom_error;
+use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
 use {
     async_trait::async_trait,
     log::*,
@@ -20,14 +21,13 @@ use {
     },
     std::{
         sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering}, RwLock,
+            atomic::{AtomicU64, Ordering},
+            Arc, RwLock,
         },
         time::{Duration, Instant},
     },
     tokio::time::sleep,
 };
-use serde::Deserialize ;
 
 pub mod error;
 
@@ -47,7 +47,6 @@ pub struct HttpSenderWithHeaders {
     stats: RwLock<RpcTransportStats>,
 }
 
-
 impl HttpSenderWithHeaders {
     /// Create an HTTP RPC sender.
     ///
@@ -60,14 +59,18 @@ impl HttpSenderWithHeaders {
     /// Create an HTTP RPC sender.
     ///
     /// The URL is an HTTP URL, usually for port 8899.
-    pub fn new_with_timeout<U: ToString>(url: U, timeout: Duration, headers: Option<HeaderMap>) -> Self {
+    pub fn new_with_timeout<U: ToString>(
+        url: U,
+        timeout: Duration,
+        headers: Option<HeaderMap>,
+    ) -> Self {
         let mut default_headers = HeaderMap::new();
         default_headers.append(
             header::HeaderName::from_static("solana-client"),
             header::HeaderValue::from_str(
                 format!("rust/{}", solana_version::Version::default()).as_str(),
             )
-                .unwrap(),
+            .unwrap(),
         );
         if let Some(headers) = headers {
             default_headers.extend(headers);
@@ -125,11 +128,11 @@ impl<'a> Drop for StatsUpdater<'a> {
 pub fn build_request_json(req: &RpcRequest, id: u64, params: Value) -> Value {
     let jsonrpc = "2.0";
     json!({
-           "jsonrpc": jsonrpc,
-           "id": id,
-           "method": format!("{}", req),
-           "params": params,
-        })
+       "jsonrpc": jsonrpc,
+       "id": id,
+       "method": format!("{}", req),
+       "params": params,
+    })
 }
 
 /// Allows use in [solana_client::rpc_client::RpcClient::with_rpc_client] by initializing
@@ -218,14 +221,14 @@ impl RpcSender for HttpSenderWithHeaders {
                             message: rpc_error_object.message,
                             data,
                         }
-                            .into())
+                        .into())
                     }
                     Err(err) => Err(RpcError::RpcRequestError(format!(
                         "Failed to deserialize RPC error response: {} [{}]",
                         serde_json::to_string(&json["error"]).unwrap(),
                         err
                     ))
-                        .into()),
+                    .into()),
                 };
             }
             return Ok(json["result"].take());
@@ -244,58 +247,56 @@ impl RpcSender for HttpSenderWithHeaders {
 /// Same tests as in the original [solana_client] crate.
 #[cfg(test)]
 mod tests {
-    use std::thread;
-    use reqwest::header::HeaderValue;
-    use crossbeam_channel::unbounded;
-    use solana_client::rpc_client::RpcClient;
-    use jsonrpc_core::{Error, IoHandler, Params};
-    use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, RequestMiddleware, RequestMiddlewareAction, ServerBuilder};
-    use serde_json::Number;
-    use futures_util::future;
-    use jsonrpc_http_server::hyper::{Body, Request};
-    use solana_client::client_error::ClientError;
     use super::*;
+    use crossbeam_channel::unbounded;
+    use futures_util::future;
+    use jsonrpc_core::{Error, IoHandler, Params};
+    use jsonrpc_http_server::hyper::{Body, Request};
+    use jsonrpc_http_server::{
+        AccessControlAllowOrigin, DomainsValidation, RequestMiddleware, RequestMiddlewareAction,
+        ServerBuilder,
+    };
+    use reqwest::header::HeaderValue;
+    use serde_json::Number;
+    use solana_client::client_error::ClientError;
+    use solana_client::rpc_client::RpcClient;
+    use std::thread;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_sender_on_tokio_multi_thread() {
         let http_sender = HttpSenderWithHeaders::new("http://localhost:1234".to_string(), None);
-        let _ = http_sender
-            .send(RpcRequest::GetVersion, Value::Null)
-            .await;
+        let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
         // And again with headers
         let mut headers = HeaderMap::new();
         headers.insert("foo", HeaderValue::from_str("bar").unwrap());
-        let http_sender = HttpSenderWithHeaders::new(
-            "http://localhost:1234".to_string(), Some(headers));
-        let _ = http_sender
-            .send(RpcRequest::GetVersion, Value::Null)
-            .await;
+        let http_sender =
+            HttpSenderWithHeaders::new("http://localhost:1234".to_string(), Some(headers));
+        let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn http_sender_on_tokio_current_thread() {
         let http_sender = HttpSenderWithHeaders::new("http://localhost:1234".to_string(), None);
-        let _ = http_sender
-            .send(RpcRequest::GetVersion, Value::Null)
-            .await;
+        let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
         // And again with headers
         let mut headers = HeaderMap::new();
         headers.insert("foo", HeaderValue::from_str("bar").unwrap());
-        let http_sender = HttpSenderWithHeaders::new(
-            "http://localhost:1234".to_string(), Some(headers));
-        let _ = http_sender
-            .send(RpcRequest::GetVersion, Value::Null)
-            .await;
+        let http_sender =
+            HttpSenderWithHeaders::new("http://localhost:1234".to_string(), Some(headers));
+        let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
     }
 
     struct CheckHeaderMiddleware;
 
     impl RequestMiddleware for CheckHeaderMiddleware {
         fn on_request(&self, request: Request<Body>) -> RequestMiddlewareAction {
-            assert_eq!(request.headers().get("foo"), Some(&HeaderValue::from_str("bar").unwrap()));
+            assert_eq!(
+                request.headers().get("foo"),
+                Some(&HeaderValue::from_str("bar").unwrap())
+            );
             RequestMiddlewareAction::Proceed {
                 should_continue_on_invalid_cors: false,
-                request
+                request,
             }
         }
     }
@@ -353,10 +354,7 @@ mod tests {
 
         let mut default_headers = HeaderMap::new();
         default_headers.insert("foo", HeaderValue::from_str("bar").unwrap());
-        let sender = HttpSenderWithHeaders::new(
-            rpc_addr,
-            Some(default_headers)
-        );
+        let sender = HttpSenderWithHeaders::new(rpc_addr, Some(default_headers));
         let rpc_client = RpcClient::new_sender(sender, Default::default());
 
         let balance: u64 = rpc_client
@@ -368,14 +366,14 @@ mod tests {
         assert_eq!(balance, 50);
 
         #[allow(deprecated)]
-            let blockhash: String = rpc_client
+        let blockhash: String = rpc_client
             .send(RpcRequest::GetRecentBlockhash, Value::Null)
             .unwrap();
         assert_eq!(blockhash, "deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHhx");
 
         // Send erroneous parameter
         #[allow(deprecated)]
-            let blockhash: Result<String, ClientError> =
+        let blockhash: Result<String, ClientError> =
             rpc_client.send(RpcRequest::GetRecentBlockhash, json!(["parameter"]));
         assert!(blockhash.is_err());
     }

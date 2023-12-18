@@ -1,5 +1,4 @@
 use core::ops::Deref;
-use std::collections::HashMap;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::program_option::COption;
 use solana_sdk::pubkey;
@@ -9,12 +8,12 @@ use solana_devtools_localnet::localnet_account::system_account::SystemAccount;
 use solana_devtools_localnet::localnet_account::token::{Mint, TokenAccount};
 
 
-pub fn suite_2() -> LocalnetConfiguration {
-    LocalnetConfiguration::new(
-        accounts(),
-        HashMap::new(),
-        Some("./tests/suite-2".to_string()),
-    ).unwrap()
+pub fn configuration() -> LocalnetConfiguration {
+    LocalnetConfiguration::with_outdir("./tests/suite-2")
+        .accounts(accounts())
+        .unwrap()
+        .program(test_program::ID, "../target/deploy/test_program.so")
+        .unwrap()
 }
 
 pub fn accounts() -> Vec<LocalnetAccount> {

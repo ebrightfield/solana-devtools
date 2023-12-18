@@ -3,6 +3,10 @@ name = "solana-devtools-localnet"
 version = "0.28.2"
 edition = "2021"
 
+[features]
+default = ["mock-runtime"]
+mock-runtime = ["solana-mock-runtime"]
+
 [dependencies]
 anchor-syn = { workspace = true }
 anchor-lang = { workspace = true }
@@ -10,7 +14,6 @@ spl-token = { workspace = true }
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 solana-program = { workspace = true }
-solana-program-test = { workspace = true }
 flate2 = "1.0.24"
 Inflector = "0.11.4"
 thiserror = "1.0.50"
@@ -18,3 +21,5 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 clap = { workspace = true }
 solana-devtools-serde = { workspace = true }
+bincode = { workspace = true }
+solana-mock-runtime = { workspace = true, optional = true }

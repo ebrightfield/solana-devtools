@@ -1,4 +1,4 @@
-use crate::error::{LocalnetConfigurationError, Result};
+use crate::error::Result;
 use crate::LocalnetConfiguration;
 use clap::Parser;
 
@@ -47,29 +47,23 @@ impl SolanaLocalnetCli {
                 output_dir,
                 overwrite_existing,
             } => {
-                build_json_and_check_programs(&cfg, output_dir.as_deref(), overwrite_existing)?;
+                let json_outdir = output_dir.as_deref();
+                cfg.write_accounts_json(json_outdir, overwrite_existing)?;
             }
             Subcommand::TestValidator {
                 build_json,
                 overwrite_existing,
                 flags,
             } => {
-                let missing_programs = cfg.missing_programs();
-                if !missing_programs.is_empty() {
-                    for path in cfg.missing_programs() {
-                        eprintln!("WARNING: Could not find program binary at path: {}", path);
-                    }
-                    return Err(LocalnetConfigurationError::MissingProgramSoFile(
-                        missing_programs.first().unwrap().to_string(),
-                    ));
+                let json_outdir = build_json.as_deref();
+                if json_outdir.is_some() {
+                    cfg.write_accounts_json(json_outdir, overwrite_existing)?;
                 }
-                let child_process = if let Some(output_dir) = build_json {
-                    build_json_and_check_programs(&cfg, Some(&output_dir), overwrite_existing)?;
-                    cfg.start_test_validator(flags, Some(&output_dir))
-                } else {
-                    cfg.start_test_validator(flags, None)
-                }
-                .expect("failed to spawn test validator");
+
+                let child_process = cfg
+                    .start_test_validator(flags, json_outdir)
+                    .expect("failed to spawn test validator");
+
                 let output = child_process
                     .wait_with_output()
                     .expect("Test validator failed unexpectedly");
@@ -86,16 +80,4 @@ impl SolanaLocalnetCli {
         }
         Ok(())
     }
-}
-
-fn build_json_and_check_programs(
-    cfg: &LocalnetConfiguration,
-    output_dir: Option<&str>,
-    overwrite_existing: bool,
-) -> Result<()> {
-    cfg.write_accounts_json(output_dir, overwrite_existing)?;
-    for path in cfg.missing_programs() {
-        eprintln!("WARNING: Could not find program binary at path: {}", path);
-    }
-    Ok(())
 }

@@ -1,7 +1,7 @@
-use std::ops::Deref;
-use std::io::Write;
-use solana_sdk::pubkey::Pubkey;
 use solana_program::program_pack::Pack;
+use solana_sdk::pubkey::Pubkey;
+use std::io::Write;
+use std::ops::Deref;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TokenAccount(spl_token::state::Account);
@@ -21,10 +21,10 @@ impl anchor_lang::AccountDeserialize for TokenAccount {
 impl anchor_lang::AccountSerialize for TokenAccount {
     fn try_serialize<W: Write>(&self, writer: &mut W) -> anchor_lang::Result<()> {
         let mut data = vec![0; spl_token::state::Account::get_packed_len()];
-        spl_token::state::Account::pack(
-            self.0, &mut data,
-        )?;
-        writer.write(&data).map_err(Into::<anchor_lang::error::Error>::into)?;
+        spl_token::state::Account::pack(self.0, &mut data)?;
+        writer
+            .write(&data)
+            .map_err(Into::<anchor_lang::error::Error>::into)?;
         Ok(())
     }
 }
@@ -67,10 +67,10 @@ impl anchor_lang::AccountDeserialize for Mint {
 impl anchor_lang::AccountSerialize for Mint {
     fn try_serialize<W: Write>(&self, writer: &mut W) -> anchor_lang::Result<()> {
         let mut data = vec![0; spl_token::state::Mint::get_packed_len()];
-        spl_token::state::Mint::pack(
-            self.0, &mut data,
-        )?;
-        writer.write(&data).map_err(Into::<anchor_lang::error::Error>::into)?;
+        spl_token::state::Mint::pack(self.0, &mut data)?;
+        writer
+            .write(&data)
+            .map_err(Into::<anchor_lang::error::Error>::into)?;
         Ok(())
     }
 }

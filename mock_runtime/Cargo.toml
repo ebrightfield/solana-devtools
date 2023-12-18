@@ -1,0 +1,14 @@
+[package]
+name = "solana-mock-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-sdk = { workspace = true }
+solana-program = { workspace = true }
+solana-program-runtime = { workspace = true }
+solana-runtime = { workspace = true }
+solana-bpf-loader-program = { workspace = true }
+solana_rbpf = { workspace = true }
+bincode = { workspace = true }
+lazy_static = { workspace = true }

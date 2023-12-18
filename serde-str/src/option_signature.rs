@@ -3,8 +3,8 @@ pub use solana_sdk::signature::Signature;
 use std::str::FromStr;
 
 pub fn serialize<S>(signature: &Option<Signature>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     if let Some(s) = signature {
         let s = format!("{}", s);
@@ -15,8 +15,8 @@ pub fn serialize<S>(signature: &Option<Signature>, serializer: S) -> Result<S::O
 }
 
 pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Signature>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: Option<String> = Option::<String>::deserialize(deserializer)?;
     if let Some(s) = s {

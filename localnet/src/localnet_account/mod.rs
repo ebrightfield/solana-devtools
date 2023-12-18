@@ -1,14 +1,14 @@
+use crate::error::{LocalnetConfigurationError, Result};
 use anchor_lang::{system_program, AccountDeserialize, AccountSerialize};
 use inflector::Inflector;
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
+use solana_devtools_serde::pubkey;
 use solana_program::clock::Epoch;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::account::{Account, AccountSharedData, WritableAccount};
 use solana_sdk::bs58;
-use solana_devtools_serde::pubkey;
+use solana_sdk::pubkey::Pubkey;
 use std::fs::{File, OpenOptions};
-use crate::error::{LocalnetConfigurationError, Result};
 
 pub mod idl;
 pub mod system_account;
@@ -67,7 +67,8 @@ impl LocalnetAccount {
         name: String,
         modify: Option<F>,
     ) -> Result<Self> {
-        let info = client.get_account(address)
+        let info = client
+            .get_account(address)
             .map_err(|e| LocalnetConfigurationError::ClonedAccountRpcError(e))?;
         // Even if there is no modify function, deserialization verifies the expected account type
         let mut deserialized = T::try_deserialize(&mut info.data.as_slice())
@@ -77,7 +78,8 @@ impl LocalnetAccount {
             deserialized = func(deserialized);
         }
         let mut serialized = Vec::new();
-        deserialized.try_serialize(&mut serialized)
+        deserialized
+            .try_serialize(&mut serialized)
             .map_err(|e| LocalnetConfigurationError::AnchorAccountError(e))?;
         Ok(Self {
             address: address.clone(),
@@ -98,7 +100,8 @@ impl LocalnetAccount {
         client: &RpcClient,
         name: String,
     ) -> Result<Self> {
-        let info = client.get_account(address)
+        let info = client
+            .get_account(address)
             .map_err(|e| LocalnetConfigurationError::ClonedAccountRpcError(e))?;
         Ok(Self {
             address: address.clone(),
@@ -147,17 +150,13 @@ impl LocalnetAccount {
         js_test_import(&self.name)
     }
 
-    pub fn json_output_path(&self, path_prefix: &str) ->  String {
+    pub fn json_output_path(&self, path_prefix: &str) -> String {
         format!("{}/{}", path_prefix, &self.name)
     }
 
     /// Write to a JSON file that can be consumed by `--account` flags in
     /// `solana-test-validator`.
-    pub fn write_to_validator_json_file(
-        &self,
-        path_prefix: &str,
-        overwrite: bool,
-    ) -> Result<()> {
+    pub fn write_to_validator_json_file(&self, path_prefix: &str, overwrite: bool) -> Result<()> {
         let path = self.json_output_path(path_prefix);
         let file = if overwrite {
             File::create(&path)
@@ -167,15 +166,17 @@ impl LocalnetAccount {
                 .write(true)
                 .create_new(true)
                 .open(&path)
-        }.map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
+        }
+        .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
         let ui_act = UiAccount::from_localnet_account(&self);
         serde_json::to_writer_pretty(
             file,
             &UiAccountWithAddr {
                 pubkey: self.address,
                 account: ui_act,
-            }
-        ).map_err(|e| LocalnetConfigurationError::SerdeFileReadWriteFailure(path, e))?;
+            },
+        )
+        .map_err(|e| LocalnetConfigurationError::SerdeFileReadWriteFailure(path, e))?;
         Ok(())
     }
 }
@@ -243,10 +244,9 @@ impl UiAccount {
 impl UiAccountWithAddr {
     pub fn to_localnet_account(&self, name: String) -> Result<LocalnetAccount> {
         let data = match &self.account.data {
-            UiAccountData::Binary(data, UiAccountEncoding::Base58) => {
-                bs58::decode(data).into_vec()
-                    .map_err(|e| LocalnetConfigurationError::InvalidBase58AccountData(e))?
-            }
+            UiAccountData::Binary(data, UiAccountEncoding::Base58) => bs58::decode(data)
+                .into_vec()
+                .map_err(|e| LocalnetConfigurationError::InvalidBase58AccountData(e))?,
         };
         Ok(LocalnetAccount {
             address: self.pubkey,

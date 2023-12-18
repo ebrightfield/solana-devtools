@@ -1,12 +1,12 @@
+use crate::error::{LocalnetConfigurationError, Result};
+use crate::localnet_account::THOUSAND_SOL;
+use crate::LocalnetAccount;
 use anchor_lang::{AccountDeserialize, AccountSerialize};
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::account::Account;
 use solana_program::clock::Epoch;
 use solana_program::pubkey::Pubkey;
 use solana_program::system_program;
-use crate::localnet_account::THOUSAND_SOL;
-use crate::LocalnetAccount;
-use crate::error::{LocalnetConfigurationError, Result};
+use solana_sdk::account::Account;
 
 /// Create account data wholecloth, from any type that implements
 /// [anchor_lang::AccountSerialize] and [anchor_lang::AccountDeserialize].
@@ -92,8 +92,7 @@ pub trait ClonedAccount {
         let info = client
             .get_account(&address)
             .map_err(|e| LocalnetConfigurationError::ClonedAccountRpcError(e))?;
-        let deserialized = Self::Data::try_deserialize(
-            &mut info.data.as_slice())
+        let deserialized = Self::Data::try_deserialize(&mut info.data.as_slice())
             .map_err(|e| LocalnetConfigurationError::AnchorAccountError(e))?;
         Ok((info, self.modify(deserialized)))
     }
@@ -109,7 +108,7 @@ pub trait ClonedAccount {
             owner: act.owner,
             executable: act.executable,
             rent_epoch: act.rent_epoch,
-            name: self.name()
+            name: self.name(),
         })
     }
 }

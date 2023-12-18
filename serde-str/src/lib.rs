@@ -19,8 +19,8 @@
 //!     pub signature: Option<Signature>,
 //! }
 //! ```
-pub mod pubkey;
-pub mod option_pubkey;
-pub mod signature;
-pub mod option_signature;
 pub mod error;
+pub mod option_pubkey;
+pub mod option_signature;
+pub mod pubkey;
+pub mod signature;

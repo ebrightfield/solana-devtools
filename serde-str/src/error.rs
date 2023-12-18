@@ -7,9 +7,7 @@ pub struct InvalidPubkey {
 
 impl InvalidPubkey {
     pub fn new(addr: String) -> Self {
-        Self {
-            addr: addr,
-        }
+        Self { addr: addr }
     }
 }
 
