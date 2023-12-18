@@ -15,7 +15,8 @@ use solana_program_runtime::log_collector::LogCollector;
 use solana_program_runtime::sysvar_cache::SysvarCache;
 use solana_rbpf::vm::BuiltinProgram;
 use solana_runtime::builtins::BUILTINS;
-use solana_sdk::account::AccountSharedData;
+use solana_sdk::account::{Account, AccountSharedData};
+use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
 use solana_sdk::feature_set::FeatureSet;
 use solana_sdk::native_loader::create_loadable_account_for_test;
 use solana_sdk::slot_history::Slot;
@@ -43,6 +44,7 @@ impl MockSolanaRuntime {
         let environment =
             create_program_runtime_environment(&feature_set, &Default::default(), false, false)?;
 
+        // Load builtins
         let mut loaded_programs = LoadedPrograms::default();
         for builtin in BUILTINS {
             loaded_programs.replenish(
@@ -55,6 +57,7 @@ impl MockSolanaRuntime {
             );
         }
 
+        // Clock and Rent should be populated with some non-zero values.
         let mut sysvar_cache = populated_sysvar_cache();
         let mut clock = Clock::default();
         clock.slot = 1;
@@ -128,6 +131,41 @@ impl MockSolanaRuntime {
 
     pub fn update_rent(&mut self, rent: Rent) {
         self.sysvar_cache.set_rent(rent);
+    }
+
+    /// Adds a BPF-upgradeable program including both its metadata account at `program_id`,
+    /// and its data buffer at an arbitrary address.
+    pub fn add_program_from_bytes(&mut self, program_id: Pubkey, programdata: &[u8]) {
+        let programdata_address = Pubkey::new_unique();
+        let program: AccountSharedData = Account {
+            lamports: 1,
+            data: bincode::serialize(&UpgradeableLoaderState::Program {
+                programdata_address,
+            })
+            .unwrap(),
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+        self.update_account(program_id, program);
+
+        let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+            slot: 0,
+            upgrade_authority_address: None,
+        })
+        .unwrap();
+        data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+        data.extend_from_slice(programdata);
+        let program_data = Account {
+            lamports: 1,
+            data,
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+        self.update_account(programdata_address, program_data);
     }
 }
 

@@ -40,7 +40,8 @@ fn test1() {
             &Payer.address(),
             None,
             5,
-        ).unwrap(),
+        )
+        .unwrap(),
         Instruction::new_with_bytes(
             test_program::ID,
             &test_program::instruction::Initialize {}.data(),
@@ -58,7 +59,7 @@ fn test1() {
     ]
     .sanitized_message(Some(&Payer.address()));
     let result = mock_runtime.process(&msg).unwrap();
-    //println!("{:#?}", result.logs);
+    println!("{:#?}", result.logs);
     assert!(result.execution_error.is_none());
     // Since the previous call does not save account mutations,
     // this second call will not fail with "AccountAlreadyExists".
@@ -77,15 +78,13 @@ fn test1() {
 fn test2() {
     let suite = configuration();
     let mut mock_runtime: MockSolanaRuntime = (&suite).try_into().unwrap();
-    let msg = [
-        system_instruction::create_account(
-            &Payer.address(),
-            &REUSED_PUBKEY,
-            1_000_000,
-            10,
-            &Pubkey::default(),
-        ),
-    ]
+    let msg = [system_instruction::create_account(
+        &Payer.address(),
+        &REUSED_PUBKEY,
+        1_000_000,
+        10,
+        &Pubkey::default(),
+    )]
     .sanitized_message(Some(&Payer.address()));
     // This test uses an independent runtime instance,
     // so no matter the order of the cargo test execution, this will not fail.

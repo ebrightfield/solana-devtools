@@ -248,56 +248,20 @@ impl TryInto<MockSolanaRuntime> for &LocalnetConfiguration {
         let mut mock_runtime = MockSolanaRuntime::new_with_spl_and_builtins()
             .map_err(|e| LocalnetConfigurationError::EbpfError(e.to_string()))?;
 
-        let accounts = accounts_from_localnet_configuration(self)?;
+        //let accounts = accounts_from_localnet_configuration(self)?;
+        let accounts = HashMap::from_iter(
+            self.accounts
+                .iter()
+                .map(|(pubkey, act)| (*pubkey, act.into())),
+        );
         mock_runtime.update_accounts(&accounts);
+        for (program_id, path) in &self.programs {
+            let mut data = vec![];
+            let _ = File::open(path)
+                .map(|mut f| f.read_to_end(&mut data))
+                .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
+            mock_runtime.add_program_from_bytes(*program_id, &data);
+        }
         Ok(mock_runtime)
     }
-}
-
-#[cfg(feature = "mock-runtime")]
-fn accounts_from_localnet_configuration(
-    localnet_configuration: &LocalnetConfiguration,
-) -> Result<HashMap<Pubkey, AccountSharedData>> {
-    let mut accounts = HashMap::from_iter(
-        localnet_configuration
-            .accounts
-            .iter()
-            .map(|(pubkey, act)| (*pubkey, act.into())),
-    );
-
-    for (program_id, path) in &localnet_configuration.programs {
-        let programdata_address = Pubkey::new_unique();
-        let program: AccountSharedData = Account {
-            lamports: 1,
-            data: bincode::serialize(&UpgradeableLoaderState::Program {
-                programdata_address,
-            })
-            .unwrap(),
-            owner: bpf_loader_upgradeable::ID,
-            executable: true,
-            rent_epoch: 0,
-        }
-        .into();
-        accounts.insert(*program_id, program);
-
-        let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
-            slot: 0,
-            upgrade_authority_address: None,
-        })
-        .unwrap();
-        data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
-        let _ = File::open(&path)
-            .map(|mut f| f.read_to_end(&mut data))
-            .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
-        let program_data = Account {
-            lamports: 1,
-            data: data,
-            owner: bpf_loader_upgradeable::ID,
-            executable: true,
-            rent_epoch: 0,
-        }
-        .into();
-        accounts.insert(programdata_address, program_data);
-    }
-    Ok(accounts)
 }
