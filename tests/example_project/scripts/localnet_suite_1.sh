@@ -3,8 +3,7 @@
 # building the program because this localnet configuration loads it
 anchor build
 
-cargo run --bin localnet_suite_1 -- build-json --overwrite-existing
-cargo run --bin localnet_suite_1 -- test-validator -- --reset
+cargo run --bin localnet_suite_1 -- test-validator --build-json --overwrite-existing -- --reset
 
 # In another terminal, you can query for loaded accounts and programs:
 

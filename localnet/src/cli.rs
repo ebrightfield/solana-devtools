@@ -19,8 +19,9 @@ pub enum Subcommand {
     TestValidator {
         /// If specified, rebuild the account JSON files
         /// before starting the local validator.
+        /// Optionally provide a directory path at which to build the JSON values.
         #[clap(long)]
-        build_json: Option<String>,
+        build_json: Option<Option<String>>,
         /// Overwrite existing JSON files. Has no effect if `build-json` arg is not provided.
         #[clap(long)]
         overwrite_existing: bool,
@@ -55,14 +56,18 @@ impl SolanaLocalnetCli {
                 overwrite_existing,
                 flags,
             } => {
-                let json_outdir = build_json.as_deref();
-                if json_outdir.is_some() {
+                let child_process = if let Some(json_outdir) = build_json {
+                    let json_outdir = json_outdir.as_deref();
                     cfg.write_accounts_json(json_outdir, overwrite_existing)?;
-                }
+                    cfg
+                        .start_test_validator(flags, json_outdir)
+                        .expect("failed to spawn test validator")
+                } else {
+                    cfg
+                        .start_test_validator(flags, None)
+                        .expect("failed to spawn test validator")
+                };
 
-                let child_process = cfg
-                    .start_test_validator(flags, json_outdir)
-                    .expect("failed to spawn test validator");
 
                 let output = child_process
                     .wait_with_output()

@@ -3,11 +3,6 @@ use crate::localnet_account::{LocalnetAccount, UiAccountWithAddr};
 #[cfg(feature = "mock-runtime")]
 use solana_mock_runtime::MockSolanaRuntime;
 use solana_program::pubkey::Pubkey;
-#[cfg(feature = "mock-runtime")]
-use solana_sdk::{
-    account::{Account, AccountSharedData},
-    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-};
 use std::collections::{HashMap, HashSet};
 #[cfg(feature = "mock-runtime")]
 use std::io::Read;

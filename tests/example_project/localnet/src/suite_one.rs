@@ -20,6 +20,10 @@ impl GeneratedAccount for Payer {
     fn generate(&self) -> Self::Data {
         SystemAccount
     }
+
+    fn name(&self) -> String {
+        "payer.json".to_string()
+    }
 }
 
 /// Configure different test suites with separate [LocalnetConfiguration] instances.

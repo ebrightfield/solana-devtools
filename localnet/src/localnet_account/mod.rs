@@ -150,8 +150,13 @@ impl LocalnetAccount {
         js_test_import(&self.name)
     }
 
+    // TODO Use `Path` for cleaner handling of this, and maybe check is dir and exists
     pub fn json_output_path(&self, path_prefix: &str) -> String {
-        format!("{}/{}", path_prefix, &self.name)
+        if path_prefix.ends_with("/") {
+            format!("{}{}", path_prefix, &self.name)
+        } else {
+            format!("{}/{}", path_prefix, &self.name)
+        }
     }
 
     /// Write to a JSON file that can be consumed by `--account` flags in
