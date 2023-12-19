@@ -23,3 +23,4 @@ clap = { workspace = true }
 solana-devtools-serde = { workspace = true }
 bincode = { workspace = true }
 solana-mock-runtime = { workspace = true, optional = true }
+base64 = "0.21.5"

@@ -21,7 +21,7 @@ pub fn idl_account_from_lib_rs(
         json_filename.to_string(),
         account_data,
     )
-    .set_owner(*program_id))
+    .owner(*program_id))
 }
 
 pub fn parse_idl_from_lib_rs<P: AsRef<Path>>(lib_rs: P) -> Result<Idl> {

@@ -1,8 +1,8 @@
 use solana_program::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
+use spl_token::state::AccountState;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
-use spl_token::state::AccountState;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TokenAccount(spl_token::state::Account);
@@ -10,11 +10,7 @@ pub struct TokenAccount(spl_token::state::Account);
 impl TokenAccount {
     pub const LEN: usize = spl_token::state::Account::LEN;
 
-    pub fn new(
-        mint: Pubkey,
-        owner: Pubkey,
-        amount: u64,
-    ) -> Self {
+    pub fn new(mint: Pubkey, owner: Pubkey, amount: u64) -> Self {
         Self::from(spl_token::state::Account {
             mint,
             owner,
@@ -115,11 +111,7 @@ pub struct Mint(spl_token::state::Mint);
 impl Mint {
     pub const LEN: usize = spl_token::state::Mint::LEN;
 
-    pub fn new(
-        mint_authority: Option<Pubkey>,
-        supply: u64,
-        decimals: u8,
-    ) -> Self {
+    pub fn new(mint_authority: Option<Pubkey>, supply: u64, decimals: u8) -> Self {
         Self::from(spl_token::state::Mint {
             mint_authority: mint_authority.into(),
             supply,

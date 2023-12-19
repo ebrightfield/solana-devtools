@@ -1,5 +1,6 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use anchor_lang::{system_program, AccountDeserialize, AccountSerialize};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use inflector::Inflector;
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
@@ -16,7 +17,7 @@ pub mod token;
 pub mod trait_based;
 
 pub use system_account::SystemAccount;
-pub use token::{TokenAccount, Mint};
+pub use token::{Mint, TokenAccount};
 
 pub const THOUSAND_SOL: u64 = 1_000_000_000_000;
 
@@ -117,32 +118,44 @@ impl LocalnetAccount {
         })
     }
 
-    pub fn set_lamports(mut self, balance: u64) -> Self {
+    pub fn from_ui_account(account: UiAccountWithAddr, name: String) -> Result<Self> {
+        Ok(Self {
+            address: account.pubkey,
+            lamports: account.account.lamports,
+            data: account.account.data.to_vec()?,
+            owner: account.account.owner,
+            executable: account.account.executable,
+            rent_epoch: account.account.rent_epoch,
+            name,
+        })
+    }
+
+    pub fn lamports(mut self, balance: u64) -> Self {
         self.lamports = balance;
         self
     }
 
-    pub fn set_owner(mut self, owner: Pubkey) -> Self {
+    pub fn owner(mut self, owner: Pubkey) -> Self {
         self.owner = owner;
         self
     }
 
-    pub fn set_executable(mut self, executable: bool) -> Self {
+    pub fn executable(mut self, executable: bool) -> Self {
         self.executable = executable;
         self
     }
 
-    pub fn set_rent_epoch(mut self, rent_epoch: Epoch) -> Self {
+    pub fn rent_epoch(mut self, rent_epoch: Epoch) -> Self {
         self.rent_epoch = rent_epoch;
         self
     }
 
-    pub fn set_address(mut self, address: Pubkey) -> Self {
+    pub fn address(mut self, address: Pubkey) -> Self {
         self.address = address;
         self
     }
 
-    pub fn set_data(mut self, data: Vec<u8>) -> Self {
+    pub fn data(mut self, data: Vec<u8>) -> Self {
         self.data = data;
         self
     }
@@ -213,6 +226,7 @@ pub fn js_test_import(location: &str) -> String {
     format!("import * as {}Json from \"./{}.json\";\nexport const {} = new anchor.web3.PublicKey({}Json.pubkey);", &name, &location, &name, &name)
 }
 
+/// Conforms to the JSON output format from RPC endpoint `getAccount`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UiAccountWithAddr {
@@ -221,6 +235,7 @@ pub struct UiAccountWithAddr {
     pub account: UiAccount,
 }
 
+/// The inner data for [UiAccountWithAddr].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UiAccount {
@@ -249,35 +264,32 @@ impl UiAccount {
     }
 }
 
-impl UiAccountWithAddr {
-    pub fn to_localnet_account(&self, name: String) -> Result<LocalnetAccount> {
-        let data = match &self.account.data {
-            UiAccountData::Binary(data, UiAccountEncoding::Base58) => bs58::decode(data)
-                .into_vec()
-                .map_err(|e| LocalnetConfigurationError::InvalidBase58AccountData(e))?,
-        };
-        Ok(LocalnetAccount {
-            address: self.pubkey,
-            lamports: self.account.lamports,
-            data,
-            owner: self.account.owner,
-            executable: self.account.executable,
-            rent_epoch: self.account.rent_epoch,
-            name,
-        })
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", untagged)]
 pub enum UiAccountData {
     Binary(String, UiAccountEncoding),
 }
 
+impl UiAccountData {
+    pub fn to_vec(&self) -> Result<Vec<u8>> {
+        match &self {
+            UiAccountData::Binary(data, encoding) => match encoding {
+                UiAccountEncoding::Base58 => bs58::decode(data)
+                    .into_vec()
+                    .map_err(|e| LocalnetConfigurationError::InvalidBase58AccountData(e)),
+                UiAccountEncoding::Base64 => STANDARD
+                    .decode(data)
+                    .map_err(|e| LocalnetConfigurationError::InvalidBase64AccountData(e)),
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum UiAccountEncoding {
     Base58,
+    Base64,
 }
 
 impl Into<AccountSharedData> for LocalnetAccount {

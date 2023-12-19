@@ -48,7 +48,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             0,
             9,
         )
-    ).set_owner(spl_token::ID);
+    ).owner(spl_token::ID);
     let test_token_account = LocalnetAccount::new(
         Pubkey::new_unique(),
         "test_user_token_act.json".to_string(),
@@ -57,7 +57,7 @@ pub fn accounts() -> Vec<LocalnetAccount> {
             test_user.address,
             0
         )
-    ).set_owner(spl_token::ID);
+    ).owner(spl_token::ID);
     vec![
         Payer.to_localnet_account(),
         test_user,

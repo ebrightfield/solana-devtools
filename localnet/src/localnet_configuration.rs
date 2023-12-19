@@ -69,7 +69,7 @@ impl LocalnetConfiguration {
                             } else {
                                 accounts.insert(
                                     ui_account.pubkey,
-                                    ui_account.to_localnet_account(name)?,
+                                    LocalnetAccount::from_ui_account(ui_account, name)?,
                                 );
                             }
                         }

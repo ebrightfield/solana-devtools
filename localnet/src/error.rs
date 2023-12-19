@@ -18,6 +18,8 @@ pub enum LocalnetConfigurationError {
     InvalidAccountJson(serde_json::Error),
     #[error("Could not parse base58 account data: {0}")]
     InvalidBase58AccountData(bs58::decode::Error),
+    #[error("Could not parse base64 account data: {0}")]
+    InvalidBase64AccountData(base64::DecodeError),
     #[error("Could not read/write to file: {0}: {1}")]
     FileReadWriteError(String, std::io::Error),
     #[error("Could not read/write to file: {0}: {1}")]
