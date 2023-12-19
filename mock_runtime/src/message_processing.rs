@@ -50,6 +50,12 @@ pub struct ProcessedMessage {
     pub execution_error: Option<TransactionError>,
 }
 
+impl ProcessedMessage {
+    pub fn success(&self) -> bool {
+        self.execution_error.is_none()
+    }
+}
+
 impl MockSolanaRuntime {
     pub fn process(&mut self, message: &SanitizedMessage) -> TransactionResult<ProcessedMessage> {
         let slot = self.sysvar_cache.get_clock().unwrap().slot;
