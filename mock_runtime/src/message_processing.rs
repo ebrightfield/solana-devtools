@@ -107,12 +107,15 @@ impl MockSolanaRuntime {
         })
     }
 
+    /// Will only update the accounts on execution success.
     pub fn process_and_update_accounts(
         &mut self,
         message: &SanitizedMessage,
     ) -> TransactionResult<ProcessedMessage> {
         let result = self.process(message)?;
-        self.update_accounts(&result.accounts);
+        if result.success() {
+            self.update_accounts(&result.accounts);
+        }
         Ok(result)
     }
 
