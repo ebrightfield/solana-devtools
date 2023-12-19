@@ -1,8 +1,9 @@
-use clap::{ArgMatches, Parser};
 use anyhow::{anyhow, Result};
 use base58::{FromBase58, ToBase58};
-use solana_clap_v3_utils::keypair::{signer_from_path};
+use clap::{ArgMatches, Parser};
+use solana_clap_v3_utils::keypair::signer_from_path;
 use solana_client::rpc_client::RpcClient;
+use solana_devtools_cli_config::KeypairArg;
 use solana_sdk::hash::hash;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::program_pack::Pack;
@@ -10,9 +11,7 @@ use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use spl_name_service::instruction::NameRegistryInstruction;
-use spl_name_service::state::{NameRecordHeader, HASH_PREFIX, get_seeds_and_key};
-use solana_devtools_cli_config::KeypairArg;
-
+use spl_name_service::state::{get_seeds_and_key, NameRecordHeader, HASH_PREFIX};
 
 #[derive(Debug, Parser)]
 pub enum NameServiceSubcommand {
@@ -48,14 +47,17 @@ pub enum NameServiceSubcommand {
         base58: bool,
     },
     /// Derive the PDA address given a name, and optionally a class and parent.
-    DeriveAccount {
+    DeriveAddress {
+        /// If provided, check if the name exists already
+        #[clap(long)]
+        check_existence: bool,
         /// The name seed
         name: String,
         /// Optional class name address
-        #[clap(parse(try_from_str=Pubkey::try_from))]
+        #[clap(long, parse(try_from_str=Pubkey::try_from))]
         class: Option<Pubkey>,
         /// Optional parent name address
-        #[clap(parse(try_from_str=Pubkey::try_from))]
+        #[clap(long, parse(try_from_str=Pubkey::try_from))]
         parent: Option<Pubkey>,
     },
     /// Update the data stored on a name record.
@@ -110,18 +112,20 @@ impl NameServiceSubcommand {
     ) -> Result<()> {
         match self {
             NameServiceSubcommand::Create {
-                name, owner, parent,
-                class, no_update, space,
+                name,
+                owner,
+                parent,
+                class,
+                no_update,
+                space,
             } => {
                 let signer = keypair.resolve(&matches)?;
                 let signer_pubkey = signer.pubkey();
                 let class = if let Some(path) = class {
-                    Some(signer_from_path(
-                        &matches,
-                        &path,
-                        "keypair",
-                        &mut None,
-                    ).map_err(|_| anyhow!("Invalid signer path: {}", path))?)
+                    Some(
+                        signer_from_path(&matches, &path, "keypair", &mut None)
+                            .map_err(|_| anyhow!("Invalid signer path: {}", path))?,
+                    )
                 } else {
                     None
                 };
@@ -133,15 +137,13 @@ impl NameServiceSubcommand {
                 let owner = owner.unwrap_or(signer.pubkey());
                 let parent_and_owner = if let Some(parent) = parent {
                     let data = client.get_account_data(&parent)?;
-                    let name_record_header = NameRecordHeader::unpack_from_slice(
-                        &data
-                    )?;
+                    let name_record_header = NameRecordHeader::unpack_from_slice(&data)?;
                     Some((parent, name_record_header.owner))
                 } else {
                     None
                 };
                 let lamports = client.get_minimum_balance_for_rent_exemption(
-                    128 + NameRecordHeader::LEN + space.unwrap_or(name.as_bytes().len())
+                    128 + NameRecordHeader::LEN + space.unwrap_or(name.as_bytes().len()),
                 )?;
                 println!("Lamports: {}", lamports);
                 let ix = create_name_instruction(
@@ -160,7 +162,10 @@ impl NameServiceSubcommand {
                     class_pubkey.as_ref(),
                     parent.as_ref(),
                 );
-                println!("Creating name address {} with name data {}", &name_address, &name);
+                println!(
+                    "Creating name address {} with name data {}",
+                    &name_address, &name
+                );
                 let signers = if let Some(class) = class {
                     vec![signer, class]
                 } else {
@@ -182,21 +187,21 @@ impl NameServiceSubcommand {
                     &instructions,
                     Some(&signer_pubkey),
                     &signers,
-                    client.get_latest_blockhash()?
+                    client.get_latest_blockhash()?,
                 );
-                let signature = client.send_transaction(&tx)
-                    .map_err(|e| {
-                        println!("{:#?}", &e);
-                        e
-                    })?;
+                let signature = client.send_transaction(&tx).map_err(|e| {
+                    println!("{:#?}", &e);
+                    e
+                })?;
                 println!("{}", signature);
-            },
-            NameServiceSubcommand::Read { name_account, base58 } => {
+            }
+            NameServiceSubcommand::Read {
+                name_account,
+                base58,
+            } => {
                 let data = client.get_account_data(&name_account)?;
                 let (header, remaining) = data.split_at(NameRecordHeader::LEN);
-                let name_record_header = NameRecordHeader::unpack_from_slice(
-                    &header
-                )?;
+                let name_record_header = NameRecordHeader::unpack_from_slice(&header)?;
                 let remaining = if base58 {
                     remaining.to_base58()
                 } else {
@@ -208,8 +213,13 @@ impl NameServiceSubcommand {
                 println!("Class: {}", name_record_header.class);
                 println!("Parent Name: {}", name_record_header.parent_name);
                 println!("Entry: {}", remaining);
-            },
-            NameServiceSubcommand::DeriveAccount { name, class, parent } => {
+            }
+            NameServiceSubcommand::DeriveAddress {
+                name,
+                class,
+                parent,
+                check_existence,
+            } => {
                 let hashed_name = hashed_name(&name);
                 let (name_address, _) = get_seeds_and_key(
                     &SPL_NAME_SERVICE,
@@ -218,12 +228,33 @@ impl NameServiceSubcommand {
                     parent.as_ref(),
                 );
                 println!("{}", name_address);
-            },
-            NameServiceSubcommand::Update { name_account, data, offset, base58, parent_name_account } => {
+                if check_existence {
+                    let account = client.get_account_data(&name_address);
+                    match account {
+                        Ok(_) => println!("Exists: true"),
+                        Err(e) => {
+                            let e_str = e.to_string();
+                            if e_str.contains("AccountNotFound") {
+                                println!("Exists: false");
+                            } else {
+                                eprintln!("{}", e_str);
+                            }
+                        }
+                    }
+                }
+            }
+            NameServiceSubcommand::Update {
+                name_account,
+                data,
+                offset,
+                base58,
+                parent_name_account,
+            } => {
                 let signer = keypair.resolve(&matches)?;
                 let signer_pubkey = signer.pubkey();
                 let data = if base58 {
-                    data.from_base58().map_err(|_| anyhow!("Invalid base58 data"))?
+                    data.from_base58()
+                        .map_err(|_| anyhow!("Invalid base58 data"))?
                 } else {
                     data.as_bytes().to_vec()
                 };
@@ -238,25 +269,26 @@ impl NameServiceSubcommand {
                     &[ix],
                     Some(&signer_pubkey),
                     &vec![signer],
-                    client.get_latest_blockhash()?
+                    client.get_latest_blockhash()?,
                 );
-                let signature = client.send_transaction(&tx)
-                    .map_err(|e| {
-                        println!("{:#?}", &e);
-                        e
-                    })?;
+                let signature = client.send_transaction(&tx).map_err(|e| {
+                    println!("{:#?}", &e);
+                    e
+                })?;
                 println!("{}", signature);
             }
-            NameServiceSubcommand::Transfer { name_account, new_owner, class } => {
+            NameServiceSubcommand::Transfer {
+                name_account,
+                new_owner,
+                class,
+            } => {
                 let signer = keypair.resolve(&matches)?;
                 let signer_pubkey = signer.pubkey();
                 let class = if let Some(path) = class {
-                    Some(signer_from_path(
-                        &matches,
-                        &path,
-                        "keypair",
-                        &mut None,
-                    ).map_err(|_| anyhow!("Invalid signer path: {}", path))?)
+                    Some(
+                        signer_from_path(&matches, &path, "keypair", &mut None)
+                            .map_err(|_| anyhow!("Invalid signer path: {}", path))?,
+                    )
                 } else {
                     None
                 };
@@ -280,35 +312,32 @@ impl NameServiceSubcommand {
                     &[ix],
                     Some(&signer_pubkey),
                     &signers,
-                    client.get_latest_blockhash()?
+                    client.get_latest_blockhash()?,
                 );
-                let signature = client.send_transaction(&tx)
-                    .map_err(|e| {
-                        println!("{:#?}", &e);
-                        e
-                    })?;
+                let signature = client.send_transaction(&tx).map_err(|e| {
+                    println!("{:#?}", &e);
+                    e
+                })?;
                 println!("{}", signature);
             }
-            NameServiceSubcommand::Delete { name_account, refund } => {
+            NameServiceSubcommand::Delete {
+                name_account,
+                refund,
+            } => {
                 let signer = keypair.resolve(&matches)?;
                 let signer_pubkey = signer.pubkey();
                 let refund_account = refund.unwrap_or(signer_pubkey.clone());
-                let ix = delete_name_instruction(
-                    name_account,
-                    signer_pubkey,
-                    refund_account,
-                )?;
+                let ix = delete_name_instruction(name_account, signer_pubkey, refund_account)?;
                 let tx = Transaction::new_signed_with_payer(
                     &[ix],
                     Some(&signer_pubkey),
                     &vec![signer],
-                    client.get_latest_blockhash()?
+                    client.get_latest_blockhash()?,
                 );
-                let signature = client.send_transaction(&tx)
-                    .map_err(|e| {
-                        println!("{:#?}", &e);
-                        e
-                    })?;
+                let signature = client.send_transaction(&tx).map_err(|e| {
+                    println!("{:#?}", &e);
+                    e
+                })?;
                 println!("{}", signature);
             }
         }

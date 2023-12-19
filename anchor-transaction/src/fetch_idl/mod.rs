@@ -43,7 +43,6 @@ pub fn fetch_idl(client: &RpcClient, idl_addr: &Pubkey) -> anyhow::Result<IdlWit
     Ok(IdlWithDiscriminators::new(idl))
 }
 
-
 #[derive(BorshDeserialize)]
 pub struct IdlAccount {
     // Address that can modify the IDL.

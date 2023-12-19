@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 anchor-syn = { workspace = true }
-anchor-lang = { workspace = true }
 anyhow = "1.0.66"
 serde_json = { version  = "1.0.88", features = ["preserve_order"] }
 serde = "1.0.148"

@@ -1,11 +1,11 @@
-use std::str::FromStr;
 use anyhow::{anyhow, Result};
-use solana_clap_v3_utils::keypair::signer_from_path;
-use solana_sdk::signature::Signer;
-use clap::{Parser, ArgMatches, ValueEnum};
+use clap::{ArgMatches, Parser, ValueEnum};
 use solana_clap_v3_utils::input_validators::normalize_to_url_if_moniker;
+use solana_clap_v3_utils::keypair::signer_from_path;
 use solana_cli_config::Config;
 use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::signature::Signer;
+use std::str::FromStr;
 
 /// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
 /// `-u/--url` CLI arg as it functions in the official Solana CLI.
@@ -49,15 +49,9 @@ pub enum CommitmentLevel {
 impl Into<CommitmentConfig> for CommitmentLevel {
     fn into(self) -> CommitmentConfig {
         match self {
-            CommitmentLevel::Processed => {
-                CommitmentConfig::processed()
-            }
-            CommitmentLevel::Confirmed => {
-                CommitmentConfig::confirmed()
-            }
-            CommitmentLevel::Finalized => {
-                CommitmentConfig::finalized()
-            }
+            CommitmentLevel::Processed => CommitmentConfig::processed(),
+            CommitmentLevel::Confirmed => CommitmentConfig::confirmed(),
+            CommitmentLevel::Finalized => CommitmentConfig::finalized(),
         }
     }
 }
@@ -74,17 +68,16 @@ impl CommitmentArg {
             return Ok(commitment.into());
         }
         let config = get_solana_cli_config()?;
-        return Ok(CommitmentConfig::from_str(&config.commitment)?)
+        return Ok(CommitmentConfig::from_str(&config.commitment)?);
     }
 
     pub fn resolve_with_config(&self, config: &Config) -> Result<CommitmentConfig> {
         if let Some(commitment) = self.commitment.clone() {
             return Ok(commitment.into());
         }
-        return Ok(CommitmentConfig::from_str(&config.commitment)?)
+        return Ok(CommitmentConfig::from_str(&config.commitment)?);
     }
 }
-
 
 /// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
 /// `-k/--keypair` CLI arg as it functions in the Solana CLI.
@@ -107,9 +100,7 @@ pub struct KeypairArg {
 }
 
 impl KeypairArg {
-    pub fn resolve(&self,
-                   matches: &ArgMatches,
-    ) -> Result<Box<dyn Signer>> {
+    pub fn resolve(&self, matches: &ArgMatches) -> Result<Box<dyn Signer>> {
         if let Some(keypair_path) = self.keypair.clone() {
             return parse_signer(matches, keypair_path.as_str());
         }
@@ -117,9 +108,10 @@ impl KeypairArg {
         parse_signer(matches, &config.keypair_path)
     }
 
-    pub fn resolve_with_config(&self,
-                   matches: &ArgMatches,
-                   config: &Config,
+    pub fn resolve_with_config(
+        &self,
+        matches: &ArgMatches,
+        config: &Config,
     ) -> Result<Box<dyn Signer>> {
         if let Some(keypair_path) = self.keypair.clone() {
             return parse_signer(matches, keypair_path.as_str());
@@ -135,12 +127,8 @@ impl KeypairArg {
 /// it as a signer when creating a multisig account.
 fn parse_signer(matches: &ArgMatches, path: &str) -> Result<Box<dyn Signer>> {
     let mut wallet_manager = None;
-    let signer = signer_from_path(
-        matches,
-        path,
-        "keypair",
-        &mut wallet_manager,
-    ).map_err(|e| anyhow!("Could not resolve signer: {:?}", e))?;
+    let signer = signer_from_path(matches, path, "keypair", &mut wallet_manager)
+        .map_err(|e| anyhow!("Could not resolve signer: {:?}", e))?;
     Ok(signer)
 }
 
@@ -150,8 +138,8 @@ fn parse_signer(matches: &ArgMatches, path: &str) -> Result<Box<dyn Signer>> {
 /// This can possibly fail if there is no Solana CLI installed, nor a config file
 /// at the expected location.
 pub fn get_solana_cli_config() -> Result<Config> {
-    let config_file = solana_cli_config::CONFIG_FILE.as_ref()
+    let config_file = solana_cli_config::CONFIG_FILE
+        .as_ref()
         .ok_or_else(|| anyhow!("unable to determine a config file path on this OS or user"))?;
-    Config::load(&config_file)
-        .map_err(|e| anyhow!("unable to load config file: {}", e.to_string()))
+    Config::load(&config_file).map_err(|e| anyhow!("unable to load config file: {}", e.to_string()))
 }

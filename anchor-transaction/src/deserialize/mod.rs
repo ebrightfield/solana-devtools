@@ -1,24 +1,27 @@
 use crate::deserialize::idl_type_deserializer::TypeDefinitionDeserializer;
+use crate::deserialize::instruction::{deser_ix_data_from_idl, AccountMetaGroups};
 use crate::fetch_idl::discriminators::IdlWithDiscriminators;
 use crate::fetch_idl::fetch_idl;
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use solana_account_decoder::{UiAccountData, UiAccountEncoding};
 use solana_client::rpc_client::RpcClient;
+use solana_program::instruction::CompiledInstruction;
+use solana_program::message::VersionedMessage;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::Account;
 use solana_sdk::bs58;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta, UiInstruction, UiTransactionEncoding, UiTransactionStatusMeta};
+use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta, UiInstruction,
+    UiTransactionEncoding, UiTransactionStatusMeta,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
-use solana_program::instruction::CompiledInstruction;
-use solana_program::message::VersionedMessage;
-use solana_transaction_status::option_serializer::OptionSerializer;
-use crate::deserialize::instruction::{AccountMetaGroups, deser_ix_data_from_idl};
 
 pub mod field;
 pub mod idl_type_deserializer;
@@ -86,7 +89,12 @@ impl AnchorLens {
         }
     }
 
-    pub fn new_with_idl(client: RpcClient, idl_program_id: String, idl_path: String, cache_idls: bool) -> Result<Self> {
+    pub fn new_with_idl(
+        client: RpcClient,
+        idl_program_id: String,
+        idl_path: String,
+        cache_idls: bool,
+    ) -> Result<Self> {
         let prog_id = Pubkey::from_str(&idl_program_id)?;
         let idl = fs::read_to_string(idl_path)?;
         let idl = serde_json::from_str(&idl)
@@ -145,41 +153,45 @@ impl AnchorLens {
             .client
             .get_transaction(txid, UiTransactionEncoding::Base64)?;
         let EncodedConfirmedTransactionWithStatusMeta {
-            transaction: EncodedTransactionWithStatusMeta { transaction, meta, .. },
+            transaction:
+                EncodedTransactionWithStatusMeta {
+                    transaction, meta, ..
+                },
             ..
         } = tx;
         let mut inner_instructions = HashMap::new();
         if let Some(UiTransactionStatusMeta {
-                        inner_instructions: OptionSerializer::Some(meta),
-                        ..
-                    }) = meta {
+            inner_instructions: OptionSerializer::Some(meta),
+            ..
+        }) = meta
+        {
             for inner_ix in meta.into_iter() {
                 inner_instructions.insert(
                     inner_ix.index,
-                    inner_ix.instructions
+                    inner_ix
+                        .instructions
                         .into_iter()
-                        .map(|ix| {
-                            match ix {
-                                UiInstruction::Compiled(ix) => Some(
-                                    CompiledInstruction {
-                                        program_id_index: ix.program_id_index,
-                                        accounts: ix.accounts,
-                                        data: bs58::decode(ix.data).into_vec().unwrap()
-                                    }
-                                ),
-                                _ => None,
-                            }
+                        .map(|ix| match ix {
+                            UiInstruction::Compiled(ix) => Some(CompiledInstruction {
+                                program_id_index: ix.program_id_index,
+                                accounts: ix.accounts,
+                                data: bs58::decode(ix.data).into_vec().unwrap(),
+                            }),
+                            _ => None,
                         })
                         .into_iter()
                         .flatten()
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>(),
                 );
             }
         }
         let transaction = transaction
             .decode()
             .ok_or(anyhow!("Failed to decode transaction"))?;
-        Ok(HistoricalTransaction { message: transaction.message, inner_instructions })
+        Ok(HistoricalTransaction {
+            message: transaction.message,
+            inner_instructions,
+        })
     }
 
     /// Useful for repeated lookups. You can reduce RPC calls by calling
@@ -209,7 +221,8 @@ impl AnchorLens {
     /// The [VersionedMessage] passed in is from the same transaction.
     /// If the attempt fails, we return a JSON object indicating the
     /// reason for failure, and any other information.
-    fn deserialize_ix(&self,
+    fn deserialize_ix(
+        &self,
         i: usize,
         ix: &CompiledInstruction,
         message: &VersionedMessage,
@@ -220,12 +233,7 @@ impl AnchorLens {
             let mut inner_ix = vec![];
             if let Some(instructions) = inner_instructions {
                 for (i, ix) in instructions.iter().enumerate() {
-                    inner_ix.push(self.deserialize_ix(
-                        i,
-                        ix,
-                        message,
-                        None,
-                    )?);
+                    inner_ix.push(self.deserialize_ix(i, ix, message, None)?);
                 }
             }
             inner_ix
@@ -245,8 +253,10 @@ impl AnchorLens {
                     let accounts = {
                         let mut metas: Vec<Value> = vec![];
                         let mut increment: usize = 0;
-                        let account_meta_groups =
-                            AccountMetaGroups::new_from_message(message.clone(), ix.accounts.clone());
+                        let account_meta_groups = AccountMetaGroups::new_from_message(
+                            message.clone(),
+                            ix.accounts.clone(),
+                        );
                         account_meta_groups.idl_accounts_to_json(
                             &mut increment,
                             idl_ix.accounts.clone(),
@@ -255,14 +265,14 @@ impl AnchorLens {
                         metas
                     };
                     let json = json!({
-                   "program_id": program_id.to_string(),
-                   "program_name": idl.name,
-                   "instruction": {
-                       "name": idl_ix.name,
-                       "data": ix_data,
-                       "accounts": accounts
-                    }
-                });
+                       "program_id": program_id.to_string(),
+                       "program_name": idl.name,
+                       "instruction": {
+                           "name": idl_ix.name,
+                           "data": ix_data,
+                           "accounts": accounts
+                        }
+                    });
                     json
                 }
                 Err(e) => {
@@ -279,16 +289,16 @@ impl AnchorLens {
         } else {
             // If there's no IDL, we cannot deserialize
             let json = json!({
-                   "program_id": program_id.to_string(),
-                   "unknown_ix": format!("instruction {}", i)
-                });
+               "program_id": program_id.to_string(),
+               "unknown_ix": format!("instruction {}", i)
+            });
             json
         };
         // Optionally append any inner instructions
         if !inner_ix.is_empty() {
-            json.as_object_mut().unwrap().insert(
-                "inner_instructions".to_string(), Value::Array(inner_ix)
-            );
+            json.as_object_mut()
+                .unwrap()
+                .insert("inner_instructions".to_string(), Value::Array(inner_ix));
         }
         Ok(json)
     }
@@ -306,14 +316,13 @@ impl AnchorLens {
     /// Caution: This calls the `fetch_idl` method on every instruction. Caching is advised!
     pub fn deserialize_transaction(&self, tx: HistoricalTransaction) -> Result<Value> {
         let mut instructions_deserialized = vec![];
-        for (i, ix) in tx.message.instructions()
-            .iter()
-            .enumerate() {
-            instructions_deserialized.push(
-              self.deserialize_ix(i, ix, &tx.message,
-                                  tx.inner_instructions.get(&u8::try_from(i).unwrap())
-              )?
-            );
+        for (i, ix) in tx.message.instructions().iter().enumerate() {
+            instructions_deserialized.push(self.deserialize_ix(
+                i,
+                ix,
+                &tx.message,
+                tx.inner_instructions.get(&u8::try_from(i).unwrap()),
+            )?);
         }
         Ok(Value::Array(instructions_deserialized))
     }
@@ -324,12 +333,8 @@ impl AnchorLens {
     /// to the blockchain, since in that case all you have is the [VersionedMessage].
     pub fn deserialize_message(&self, message: &VersionedMessage) -> Result<Value> {
         let mut instructions_deserialized = vec![];
-        for (i, ix) in message.instructions()
-            .iter()
-            .enumerate() {
-            instructions_deserialized.push(
-                self.deserialize_ix(i, ix, message, None)?
-            );
+        for (i, ix) in message.instructions().iter().enumerate() {
+            instructions_deserialized.push(self.deserialize_ix(i, ix, message, None)?);
         }
         Ok(Value::Array(instructions_deserialized))
     }

@@ -1,6 +1,6 @@
+use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::{Signature, Signer, SignerError};
 use std::sync::{Arc, Mutex};
-use solana_program::pubkey::Pubkey;
 
 /// Basic struct that imbues a [T: Signer] with [Clone + Send + Sync].
 #[derive(Debug)]
@@ -12,7 +12,7 @@ impl<T: Signer> ThreadsafeSigner<T> {
     #[allow(dead_code)]
     pub fn new(inner: T) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(inner))
+            inner: Arc::new(Mutex::new(inner)),
         }
     }
 }
@@ -41,11 +41,10 @@ impl<T: Signer> Signer for ThreadsafeSigner<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
+    use crate::threadsafe_signer::ThreadsafeSigner;
     use solana_sdk::signature::keypair_from_seed;
     use solana_sdk::signature::Signer;
-    use crate::threadsafe_signer::ThreadsafeSigner;
-
+    use std::thread;
 
     #[test]
     fn threadsafe_keypair() {
@@ -54,9 +53,7 @@ mod tests {
         let pubkey = keypair.pubkey();
         let data = [1u8];
         let sig = keypair.sign_message(&data);
-        let takes_trait_object = |signer: Box<dyn Signer>| {
-            signer.pubkey()
-        };
+        let takes_trait_object = |signer: Box<dyn Signer>| signer.pubkey();
 
         // Test thread safety
         {

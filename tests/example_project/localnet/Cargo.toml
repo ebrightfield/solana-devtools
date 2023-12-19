@@ -1,0 +1,30 @@
+[package]
+name = "test-localnet"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "localnet_suite_1"
+path = "src/bin/suite_1/main.rs"
+
+[[bin]]
+name = "localnet_suite_2"
+path = "src/bin/suite_2/main.rs"
+
+[dependencies]
+solana-devtools-localnet = { path = "../../../localnet" }
+test-program = { path = "../programs/test-program" }
+clap = "3"
+solana-sdk = "1.16"
+solana-client = "1.16"
+anyhow = "1.0.66"
+spl-token = "3.5.0"
+serde_json = "1.0.108"
+
+[dev-dependencies]
+lazy_static = "1.4.0"
+solana-sdk = "1.16"
+spl-associated-token-account = { version = "2", features = ["no-entrypoint"] }
+solana-mock-runtime = { path = "../../../mock_runtime" }
+solana-devtools-tx = { path = "../../../transaction" }
+anchor-lang = "0.28.0"

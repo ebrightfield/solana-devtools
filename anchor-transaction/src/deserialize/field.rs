@@ -109,7 +109,7 @@ pub fn deserialize_idl_type(
                 Ok(Some(value).into())
             } else {
                 Ok(None::<Value>.into())
-            }
+            };
         }
         IdlType::Vec(idl_type) => {
             let arr_len: u32 = borsh::BorshDeserialize::deserialize(raw_data)?;
@@ -125,7 +125,7 @@ pub fn deserialize_idl_type(
                 values.push(deserialize_idl_type(idl_type, type_defs, raw_data)?);
             }
             return Ok(values.into());
-        },
+        }
         _ => {
             return Err(anyhow!("U256 and I256 not yet supported"));
         }
@@ -158,10 +158,7 @@ pub fn deserialize_idl_fields(
     for field in fields {
         let deserialized = deserialize_idl_type(&field.ty, &idl.types, data)
             .map_err(|e| anyhow!("Failed to deserialize field {:?}, {}", field, e))?;
-        map.insert(
-            field.name.clone(),
-            deserialized,
-        );
+        map.insert(field.name.clone(), deserialized);
     }
     return Ok(Value::Object(map.into()));
 }

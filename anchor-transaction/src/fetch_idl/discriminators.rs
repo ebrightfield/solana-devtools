@@ -1,8 +1,8 @@
 use anchor_syn::hash::hash;
 use anchor_syn::idl::{Idl, IdlInstruction, IdlTypeDefinition};
+use heck::SnakeCase;
 use std::collections::BTreeMap;
 use std::ops::Deref;
-use heck::SnakeCase;
 
 /// Provides a means of looking up by discriminator to retrieve
 /// the IDL definitions for their associated account or instruction schema.
