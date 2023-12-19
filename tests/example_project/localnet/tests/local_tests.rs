@@ -91,3 +91,31 @@ fn test2() {
     let result = mock_runtime.process(&msg).unwrap();
     assert!(result.execution_error.is_none());
 }
+
+#[test]
+fn test3() {
+    let suite = configuration();
+    let mut mock_runtime: MockSolanaRuntime = (&suite).try_into().unwrap();
+    let msg = [
+        system_instruction::create_account(
+            &Payer.address(),
+            &REUSED_PUBKEY,
+            1_000_000,
+            5,
+            &spl_token::ID,
+        ),
+        spl_token::instruction::initialize_mint2(
+            &spl_token::ID,
+            &REUSED_PUBKEY,
+            &Payer.address(),
+            None,
+            5,
+        )
+            .unwrap(),
+    ]
+        .sanitized_message(Some(&Payer.address()));
+    let result = mock_runtime.process_and_update_accounts(&msg).unwrap();
+    // `process_and_update_accounts` will only update account state on successful transactions
+    assert!(!result.success());
+    assert_eq!(mock_runtime.get_account(&REUSED_PUBKEY), None);
+}
