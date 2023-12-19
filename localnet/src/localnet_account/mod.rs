@@ -15,6 +15,9 @@ pub mod system_account;
 pub mod token;
 pub mod trait_based;
 
+pub use system_account::SystemAccount;
+pub use token::{TokenAccount, Mint};
+
 pub const THOUSAND_SOL: u64 = 1_000_000_000_000;
 
 /// Builds JSON files consumable by `solana-test-validator`.

@@ -3,7 +3,6 @@ use solana_devtools_localnet::{GeneratedAccount, LocalnetAccount, LocalnetConfig
 use solana_devtools_localnet::localnet_account::system_account::SystemAccount;
 use solana_devtools_localnet::localnet_account::token::{Mint, TokenAccount};
 use solana_sdk::pubkey::Pubkey;
-use spl_token::solana_program::program_option::COption;
 
 /// Use const values if you want to keep values fixed across test builds.
 /// Otherwise `Pubkey::new_unique()` suffices.
@@ -44,27 +43,20 @@ pub fn accounts() -> Vec<LocalnetAccount> {
     let test_mint = LocalnetAccount::new(
         TEST_MINT,
         "mint.json".to_string(),
-        Mint::from(spl_token::state::Mint {
-            mint_authority: COption::Some(test_user.address),
-            supply: 0,
-            decimals: 9,
-            is_initialized: true,
-            freeze_authority: COption::Some(test_user.address),
-        })
+        Mint::new(
+            Some(test_user.address),
+            0,
+            9,
+        )
     ).set_owner(spl_token::ID);
     let test_token_account = LocalnetAccount::new(
         Pubkey::new_unique(),
         "test_user_token_act.json".to_string(),
-        TokenAccount::from(spl_token::state::Account {
-            mint: test_mint.address,
-            owner: test_user.address,
-            amount: 0,
-            delegate: COption::None,
-            state: spl_token::state::AccountState::Initialized,
-            is_native: COption::None,
-            delegated_amount: 0,
-            close_authority: COption::Some(test_user.address)
-        })
+        TokenAccount::new(
+            test_mint.address,
+            test_user.address,
+            0
+        )
     ).set_owner(spl_token::ID);
     vec![
         Payer.to_localnet_account(),
