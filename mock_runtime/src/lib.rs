@@ -118,6 +118,13 @@ impl MockSolanaRuntime {
         })
     }
 
+    /// Overwrite the entire clock
+    pub fn set_clock(&mut self, clock: Clock) {
+        self.sysvar_cache.set_clock(clock);
+    }
+
+    /// Update the clock slot or unix timestamp. To update the entire [Clock], use
+    /// [MockSolanaRuntime::set_clock].
     pub fn update_clock(&mut self, slot: Option<Slot>, unix_timestamp: Option<i64>) {
         let mut clock: Clock = (*self.sysvar_cache.get_clock().unwrap()).clone();
         if let Some(slot) = slot {
@@ -129,7 +136,7 @@ impl MockSolanaRuntime {
         self.sysvar_cache.set_clock(clock);
     }
 
-    pub fn update_rent(&mut self, rent: Rent) {
+    pub fn set_rent(&mut self, rent: Rent) {
         self.sysvar_cache.set_rent(rent);
     }
 
