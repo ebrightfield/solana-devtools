@@ -17,6 +17,7 @@ use solana_sdk::bpf_loader;
 use solana_sdk::bpf_loader_deprecated;
 use solana_sdk::bpf_loader_upgradeable;
 use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
+use solana_sdk::instruction::InstructionError;
 use solana_sdk::message::SanitizedMessage;
 use solana_sdk::native_loader;
 use solana_sdk::pubkey::Pubkey;
@@ -53,6 +54,37 @@ pub struct ProcessedMessage {
 impl ProcessedMessage {
     pub fn success(&self) -> bool {
         self.execution_error.is_none()
+    }
+
+    pub fn check_error_code<T: Into<u32>>(&self, instruction_index: u8, error_code: T) -> Result<(), &Option<TransactionError>> {
+        if let Some(TransactionError::InstructionError(
+            idx,
+            err,
+        )) = &self.execution_error {
+            if *idx != instruction_index {
+                return Err(&self.execution_error);
+            }
+            if let InstructionError::Custom(code) = err {
+                if *code != error_code.into() {
+                    return Err(&self.execution_error);
+                }
+            } else {
+                return Err(&self.execution_error);
+            }
+            Ok(())
+        } else {
+            Err(&self.execution_error)
+        }
+    }
+
+    #[cfg(feature = "anchor")]
+    pub fn get_account_as<T: anchor_lang::AccountDeserialize>(&self, pubkey: &Pubkey) -> Option<anchor_lang::Result<T>> {
+        self.accounts
+            .get(pubkey)
+            .map(|act| {
+                let mut data = act.data();
+                T::try_deserialize(&mut data)
+            })
     }
 }
 
@@ -348,5 +380,70 @@ impl WorkingSlot for WrappedSlot {
 
     fn is_ancestor(&self, _: Slot) -> bool {
         true
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use anchor_lang::error::ErrorCode;
+    use solana_program::instruction::InstructionError;
+    use solana_sdk::transaction::TransactionError;
+    use crate::message_processing::ProcessedMessage;
+
+    #[test]
+    fn check_error_code() {
+        let mut processed_message = ProcessedMessage {
+            accounts: Default::default(),
+            compute_units: 0,
+            logs: vec![],
+            execution_error: None,
+        };
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&None),
+        );
+
+        let err = TransactionError::CallChainTooDeep;
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&Some(err)),
+        );
+
+        let err = TransactionError::InstructionError(1, InstructionError::Custom(1000));
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&Some(err)),
+        );
+
+        let err = TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized);
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&Some(err)),
+        );
+
+        let err = TransactionError::InstructionError(0, InstructionError::Custom(1001));
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&Some(err)),
+        );
+
+        let err = TransactionError::InstructionError(0, InstructionError::Custom(ErrorCode::AccountOwnedByWrongProgram.into()));
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Err(&Some(err)),
+        );
+
+        let err = TransactionError::InstructionError(0, InstructionError::Custom(1000));
+        processed_message.execution_error = Some(err.clone());
+        assert_eq!(
+            processed_message.check_error_code(0, 1000u32),
+            Ok(()),
+        );
     }
 }

@@ -15,7 +15,7 @@ use solana_program_runtime::log_collector::LogCollector;
 use solana_program_runtime::sysvar_cache::SysvarCache;
 use solana_rbpf::vm::BuiltinProgram;
 use solana_runtime::builtins::BUILTINS;
-use solana_sdk::account::{Account, AccountSharedData};
+use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
 use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
 use solana_sdk::feature_set::FeatureSet;
 use solana_sdk::native_loader::create_loadable_account_for_test;
@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// in the `SanitizedMessage`.
 pub struct MockSolanaRuntime {
     cached_accounts: HashMap<Pubkey, AccountSharedData>,
-    sysvar_cache: SysvarCache,
+    pub sysvar_cache: SysvarCache,
     feature_set: Arc<FeatureSet>,
     environment: Arc<BuiltinProgram<InvokeContext<'static>>>,
     loaded_programs: LoadedPrograms,
@@ -101,6 +101,15 @@ impl MockSolanaRuntime {
         self.cached_accounts.get(pubkey)
     }
 
+    #[cfg(feature = "anchor")]
+    pub fn get_account_as<T: anchor_lang::AccountDeserialize>(&self, pubkey: &Pubkey) -> Option<anchor_lang::Result<T>> {
+        self.get_account(pubkey)
+            .map(|act| {
+                let mut data = act.data();
+                T::try_deserialize(&mut data)
+            })
+    }
+
     /// When loading transactions, we want to unwrap to default. This allows
     /// for operations like `system_instruction::create_account`.
     pub fn get_account_or_default(&self, pubkey: &Pubkey) -> AccountSharedData {
@@ -118,6 +127,13 @@ impl MockSolanaRuntime {
         })
     }
 
+    /// Overwrite the entire clock
+    pub fn set_clock(&mut self, clock: Clock) {
+        self.sysvar_cache.set_clock(clock);
+    }
+
+    /// Update the clock slot or unix timestamp. To update the entire [Clock], use
+    /// [MockSolanaRuntime::set_clock].
     pub fn update_clock(&mut self, slot: Option<Slot>, unix_timestamp: Option<i64>) {
         let mut clock: Clock = (*self.sysvar_cache.get_clock().unwrap()).clone();
         if let Some(slot) = slot {
@@ -129,7 +145,7 @@ impl MockSolanaRuntime {
         self.sysvar_cache.set_clock(clock);
     }
 
-    pub fn update_rent(&mut self, rent: Rent) {
+    pub fn set_rent(&mut self, rent: Rent) {
         self.sysvar_cache.set_rent(rent);
     }
 

@@ -3718,6 +3718,7 @@ dependencies = [
 name = "solana-mock-runtime"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
  "bincode",
  "lazy_static",
  "solana-bpf-loader-program",
