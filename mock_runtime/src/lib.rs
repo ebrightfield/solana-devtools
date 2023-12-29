@@ -15,7 +15,7 @@ use solana_program_runtime::log_collector::LogCollector;
 use solana_program_runtime::sysvar_cache::SysvarCache;
 use solana_rbpf::vm::BuiltinProgram;
 use solana_runtime::builtins::BUILTINS;
-use solana_sdk::account::{Account, AccountSharedData};
+use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
 use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
 use solana_sdk::feature_set::FeatureSet;
 use solana_sdk::native_loader::create_loadable_account_for_test;
@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// in the `SanitizedMessage`.
 pub struct MockSolanaRuntime {
     cached_accounts: HashMap<Pubkey, AccountSharedData>,
-    sysvar_cache: SysvarCache,
+    pub sysvar_cache: SysvarCache,
     feature_set: Arc<FeatureSet>,
     environment: Arc<BuiltinProgram<InvokeContext<'static>>>,
     loaded_programs: LoadedPrograms,
@@ -99,6 +99,15 @@ impl MockSolanaRuntime {
     /// This getter includes program accounts and program data accounts
     pub fn get_account(&self, pubkey: &Pubkey) -> Option<&AccountSharedData> {
         self.cached_accounts.get(pubkey)
+    }
+
+    #[cfg(feature = "anchor")]
+    pub fn get_account_as<T: anchor_lang::AccountDeserialize>(&self, pubkey: &Pubkey) -> Option<anchor_lang::Result<T>> {
+        self.get_account(pubkey)
+            .map(|act| {
+                let mut data = act.data();
+                T::try_deserialize(&mut data)
+            })
     }
 
     /// When loading transactions, we want to unwrap to default. This allows
