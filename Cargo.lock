@@ -588,12 +588,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base58"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6107fe1be6682a68940da878d9e9f5e90ca5745b3dec9fd1bb393c8777d4f581"
-
-[[package]]
 name = "base64"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3973,7 +3967,6 @@ dependencies = [
  "anchor-spl",
  "anchor-transaction-deser",
  "anyhow",
- "base58",
  "bincode 1.3.3",
  "clap 3.2.25",
  "serde_json",
@@ -3992,12 +3985,13 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-cli-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap 3.2.25",
  "solana-clap-v3-utils",
  "solana-cli-config",
+ "solana-devtools-signers",
  "solana-sdk",
 ]
 
@@ -4088,13 +4082,16 @@ dependencies = [
 
 [[package]]
 name = "solana-devtools-signers"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
- "solana-clap-v3-utils",
+ "base64 0.21.5",
+ "rpassword",
+ "serde_json",
  "solana-program",
  "solana-remote-wallet",
  "solana-sdk",
+ "tiny-bip39",
  "uriparse",
 ]
 

@@ -7,6 +7,11 @@ edition = "2021"
 name = "solana-devtools"
 path = "src/main.rs"
 
+[features]
+default = []
+faucet = ["spl-token-faucet", "solana-devtools-faucet"]
+name-service = ["spl-name-service"]
+
 [dependencies]
 anyhow = "1.0.58"
 serde_json = "1.0.96"
@@ -16,14 +21,13 @@ solana-clap-v3-utils = { workspace = true }
 solana-cli-config = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
-spl-token-faucet = { version = "0.0.1", git = "https://github.com/paul-schaaf/spl-token-faucet.git" }
+spl-token-faucet = { version = "0.0.1", git = "https://github.com/paul-schaaf/spl-token-faucet.git", optional = true }
 anchor-spl = { workspace = true }
 anchor-lang = { workspace = true }
 clap = { workspace = true }
 solana-devtools-cli-config = { path = "../cli-config" }
-solana-devtools-faucet = { path = "../faucet" }
+solana-devtools-faucet = { path = "../faucet", optional = true }
 anchor-transaction-deser = { path = "../anchor-transaction" }
-spl-name-service = { version = "0.2.0", features = ["no-entrypoint"] }
-base58 = "0.2.0"
+spl-name-service = { version = "0.2.0", features = ["no-entrypoint"], optional = true }
 bincode = "1.3.3"
 spl-memo = { version = "3", features = ["no-entrypoint"] }

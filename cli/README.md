@@ -57,9 +57,9 @@ into human-readable information, provided that there is an IDL available either 
 - The `memo` command submits an SPL memo transaction.
 You can also submit a memo of the SHA256 hash of a file at a given path.
 
-Some other notable subcommands are detailed below.
+Other feature-flagged subcommands are detailed below.
 
-### SPL Token Faucet CLI
+### SPL Token Faucet CLI (build with `faucet` feature)
 The `faucet` subcommand provides a CLI for the SPL Token Faucet program,
 the source code of which can be found here:
 
@@ -101,7 +101,7 @@ Faucet {
 }
 ```
 
-### SPL Name Service Subcommand
+### SPL Name Service Subcommand (build with `name-service` feature)
 ```
 $ solana-devtools name-service --help
 solana-devtools-name-service 

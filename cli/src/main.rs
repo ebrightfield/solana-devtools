@@ -1,7 +1,9 @@
 mod faucet;
 mod name_service;
 
+#[cfg(feature = "faucet")]
 use crate::faucet::FaucetSubcommand;
+#[cfg(feature = "name-service")]
 use crate::name_service::NameServiceSubcommand;
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_transaction_deser::AnchorLens;
@@ -53,12 +55,14 @@ impl Opt {
                     .map_err(|_| anyhow!("Invalid pubkey or path: {}", mint))?;
                 println!("{}", get_associated_token_address(&owner, &mint));
             }
+            #[cfg(feature = "faucet")]
             Subcommand::Faucet(subcommand) => {
                 let url = self.url.resolve()?;
                 let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 subcommand.process(&client, &self.keypair, &matches)?;
             }
+            #[cfg(feature = "name-service")]
             Subcommand::NameService(subcommand) => {
                 let url = self.url.resolve()?;
                 let commitment = self.commitment.resolve()?;
@@ -248,10 +252,10 @@ enum Subcommand {
     /// Execute a transaction on the SPL Token Faucet program.
     /// The program is on devnet at 4bXpkKSV8swHSnwqtzuboGPaPDeEgAn4Vt8GfarV5rZt.
     /// See https://github.com/paul-schaaf/spl-token-faucet for source code.
-    #[clap(subcommand)]
+    #[cfg(feature = "faucet")]
     Faucet(FaucetSubcommand),
     /// Execute a transaction on the SPL Name Program
-    #[clap(subcommand)]
+    #[cfg(feature = "name-service")]
     NameService(NameServiceSubcommand),
     /// A vanilla RPC call to get a confirmed transaction.
     GetTransaction {
