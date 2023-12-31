@@ -1,10 +1,9 @@
 [workspace]
 members = [
-    "anchor-transaction",
+    "anchor-utils",
     "cli",
     "cli-config",
     "extra-signers",
-    "faucet",
     "localnet",
     "mock_runtime",
     "monitoring",
@@ -17,9 +16,9 @@ resolver = "2"
 [workspace.dependencies]
 async-trait = "0.1.74"
 anchor-lang = "0.28.0"
-anchor-client = "0.28.0"
 anchor-spl = "0.28.0"
 anchor-syn = { version = "0.28.0", features = ["idl", "hash"] }
+solana-address-lookup-table-program = "<1.16.24"
 solana-client = "<1.16.24"
 solana-faucet = "<1.16.24"
 solana-program = "<1.16.24"
@@ -42,8 +41,7 @@ spl-associated-token-account = "1.1.2"
 clap = { version = "3", features = [ "derive", "env" ] }
 serde = "1.0.193"
 serde_json = "1.0.108"
-spl-token-faucet = { version = "0.0.1", git = "https://github.com/paul-schaaf/spl-token-faucet.git" }
-spl-memo = "3"
+spl-memo = { version = "3", features = ["no-entrypoint"] }
 bincode = "1"
 lazy_static = "1.4.0"
 log = "0.4"
@@ -51,7 +49,10 @@ tokio = "1"
 anyhow = "1.0.76"
 base64 = "0.21.5"
 
+solana-devtools-cli-config = { path = "cli-config" }
 solana-devtools-serde = { path = "serde-str" }
 solana-devtools-signers = { path = "extra-signers" }
 solana-devtools-localnet = { path = "localnet" }
+solana-devtools-tx = { path = "transaction" }
 solana-mock-runtime = { path = "mock_runtime" }
+solana-devtools-anchor-utils = { path = "anchor-utils" }

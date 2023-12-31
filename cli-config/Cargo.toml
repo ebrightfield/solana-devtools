@@ -15,3 +15,4 @@ solana-clap-v3-utils = { workspace = true }
 solana-cli-config = { workspace = true }
 clap = { workspace = true }
 solana-devtools-signers = { workspace = true }
+tokio = { workspace = true }

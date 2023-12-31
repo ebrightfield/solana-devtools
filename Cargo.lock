@@ -275,26 +275,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor-transaction-deser"
-version = "0.2.0"
-dependencies = [
- "anchor-syn",
- "anyhow",
- "base64 0.20.0",
- "bincode 2.0.0-rc.3",
- "borsh 0.9.3",
- "flate2",
- "heck 0.3.3",
- "serde",
- "serde_json",
- "solana-account-decoder",
- "solana-client",
- "solana-program",
- "solana-sdk",
- "solana-transaction-status",
-]
-
-[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3960,27 +3940,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-devtools-anchor-utils"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-syn",
+ "anyhow",
+ "base64 0.20.0",
+ "bincode 2.0.0-rc.3",
+ "borsh 0.9.3",
+ "flate2",
+ "heck 0.3.3",
+ "serde",
+ "serde_json",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-devtools-serde",
+ "solana-devtools-tx",
+ "solana-program",
+ "solana-sdk",
+ "solana-transaction-status",
+ "tokio",
+]
+
+[[package]]
 name = "solana-devtools-cli"
 version = "0.3.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "anchor-transaction-deser",
  "anyhow",
  "bincode 1.3.3",
  "clap 3.2.25",
  "serde_json",
  "solana-clap-v3-utils",
- "solana-cli-config",
  "solana-client",
+ "solana-devtools-anchor-utils",
  "solana-devtools-cli-config",
- "solana-devtools-faucet",
+ "solana-devtools-tx",
  "solana-sdk",
- "spl-associated-token-account 1.1.3",
  "spl-memo 3.0.1",
- "spl-name-service",
  "spl-token 3.5.0",
- "spl-token-faucet",
+ "tokio",
 ]
 
 [[package]]
@@ -3993,21 +3994,7 @@ dependencies = [
  "solana-cli-config",
  "solana-devtools-signers",
  "solana-sdk",
-]
-
-[[package]]
-name = "solana-devtools-faucet"
-version = "0.2.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "anyhow",
- "clap 3.2.25",
- "solana-client",
- "solana-sdk",
- "spl-associated-token-account 1.1.3",
- "spl-token 3.5.0",
- "spl-token-faucet",
+ "tokio",
 ]
 
 [[package]]
@@ -4101,8 +4088,11 @@ version = "0.28.0"
 dependencies = [
  "async-trait",
  "bincode 1.3.3",
+ "solana-address-lookup-table-program",
  "solana-client",
+ "solana-program",
  "solana-sdk",
+ "solana-transaction-status",
  "spl-memo 3.0.1",
 ]
 
@@ -4981,19 +4971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spl-name-service"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c2920a0762e3fdbd02a24469787d9217f658776502265a9b99903557be28adf"
-dependencies = [
- "borsh 0.9.3",
- "num-derive 0.3.3",
- "num-traits",
- "solana-program",
- "thiserror",
-]
-
-[[package]]
 name = "spl-pod"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5112,19 +5089,6 @@ dependencies = [
  "spl-token-metadata-interface",
  "spl-transfer-hook-interface",
  "spl-type-length-value",
- "thiserror",
-]
-
-[[package]]
-name = "spl-token-faucet"
-version = "0.0.1"
-source = "git+https://github.com/paul-schaaf/spl-token-faucet.git#dc0e92f1eda5772858ae7ebdc0eecfe23c4d4405"
-dependencies = [
- "arrayref",
- "num-derive 0.3.3",
- "num-traits",
- "solana-program",
- "spl-token 3.5.0",
  "thiserror",
 ]
 

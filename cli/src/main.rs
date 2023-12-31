@@ -1,21 +1,15 @@
-mod faucet;
-mod name_service;
 
-#[cfg(feature = "faucet")]
-use crate::faucet::FaucetSubcommand;
-#[cfg(feature = "name-service")]
-use crate::name_service::NameServiceSubcommand;
 use anchor_spl::associated_token::get_associated_token_address;
-use anchor_transaction_deser::AnchorLens;
+use solana_devtools_anchor_utils::deserialize::AnchorDeserializer;
 use anyhow::{anyhow, Result};
 use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
 use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
 use solana_sdk::bs58;
 use solana_sdk::hash::Hasher;
-use solana_sdk::message::{Message, VersionedMessage};
+use solana_sdk::message::{v0, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
@@ -25,6 +19,8 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
+use solana_devtools_tx::decompile_instructions::lookup_addresses;
+use solana_devtools_tx::inner_instructions::HistoricalTransaction;
 
 /// CLI for an improved Solana DX
 #[derive(Debug, Parser)]
@@ -40,45 +36,29 @@ struct Opt {
 }
 
 impl Opt {
-    pub fn process(self) -> Result<()> {
+    pub async fn process(self) -> Result<()> {
         let app = Opt::into_app();
         let matches = app.get_matches();
+        let main_signer = self.keypair.resolve(None)?;
+        let url = self.url.resolve(None)?;
+        let commitment = self.commitment.resolve(None)?;
         match self.cmd {
             Subcommand::Ata { mint, owner } => {
                 let owner = if let Some(path) = owner {
                     pubkey_from_path(&matches, &path, "keypair", &mut None)
                         .map_err(|_| anyhow!("Invalid pubkey or path: {}", path))?
                 } else {
-                    self.keypair.resolve(&matches)?.pubkey()
+                    main_signer.pubkey()
                 };
                 let mint = pubkey_from_path(&matches, &mint, "keypair", &mut None)
                     .map_err(|_| anyhow!("Invalid pubkey or path: {}", mint))?;
                 println!("{}", get_associated_token_address(&owner, &mint));
-            }
-            #[cfg(feature = "faucet")]
-            Subcommand::Faucet(subcommand) => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
-                let client = RpcClient::new_with_commitment(url, commitment);
-                subcommand.process(&client, &self.keypair, &matches)?;
-            }
-            #[cfg(feature = "name-service")]
-            Subcommand::NameService(subcommand) => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
-                let client = RpcClient::new_with_commitment(url, commitment);
-                subcommand.process(&client, &self.keypair, &matches)?;
             }
             Subcommand::Memo {
                 msg,
                 signer,
                 hash_file,
             } => {
-                let opt = Opt::into_app();
-                let matches = opt.get_matches();
-                let main_signer = self.keypair.resolve(&matches)?;
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let mut signers: Vec<Box<dyn Signer>> = vec![];
                 for path in signer {
@@ -87,7 +67,7 @@ impl Opt {
                             .map_err(|_| anyhow!("Invalid signer path: {}", path))?,
                     );
                 }
-                signers.push(main_signer);
+                signers.push(Box::new(main_signer));
                 let signer_pubkeys: Vec<Pubkey> = signers.iter().map(|s| s.pubkey()).collect();
                 let pubkey_refs: Vec<&Pubkey> = signer_pubkeys.iter().map(|p| p).collect();
                 let msg = if hash_file {
@@ -102,17 +82,15 @@ impl Opt {
                     &[ix],
                     Some(&signer_pubkeys.last().unwrap()),
                     &signers,
-                    client.get_latest_blockhash()?,
+                    client.get_latest_blockhash().await?,
                 );
-                let signature = client.send_transaction(&tx).map_err(|e| {
+                let signature = client.send_transaction(&tx).await.map_err(|e| {
                     println!("{:#?}", &e);
                     e
                 })?;
                 println!("{}", signature);
             }
             Subcommand::GetTransaction { txid, outfile } => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let tx = client.get_transaction_with_config(
                     &Signature::from_str(&txid)?,
@@ -121,7 +99,7 @@ impl Opt {
                         max_supported_transaction_version: Some(0),
                         ..Default::default()
                     },
-                )?;
+                ).await?;
                 let json = serde_json::to_string_pretty(&tx)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -131,25 +109,26 @@ impl Opt {
                 }
             }
             Subcommand::DeserializeTransaction { txid, idl, outfile } => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let txid = Signature::from_str(&txid)?;
-                let lens = if let Some(path) = idl {
+                let mut deser = if let Some(path) = idl {
                     let pieces: Vec<&str> = path.as_str().split(":").collect();
                     if pieces.len() != 2 {
                         return Err(anyhow!(
                             "Invalid idl argument, must be <program-id>:<filepath>"
                         ));
                     }
-                    let prog_id = pieces[0].to_string();
+                    let prog_id = Pubkey::from_str(pieces[0])?;
                     let path = pieces[1].to_string();
-                    AnchorLens::new_with_idl(client, prog_id, path, true).expect("Invalid IDL file")
+                    let mut deser = AnchorDeserializer::new();
+                    deser.cache_idl_from_file(prog_id, path)?;
+                    deser
                 } else {
-                    AnchorLens::new(client)
+                    AnchorDeserializer::new()
                 };
-                let tx = lens.get_versioned_transaction(&txid)?;
-                let json = lens.deserialize_transaction(tx)?;
+                let tx = HistoricalTransaction::get_nonblocking(&client, &txid).await?;
+                deser.fetch_and_cache_any_idls(&client, tx.clone()).await?;
+                let json = deser.try_deserialize_transaction(tx)?;
                 let json = serde_json::to_string_pretty(&json)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -163,25 +142,26 @@ impl Opt {
                 outfile,
                 idl,
             } => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
-                let lens = if let Some(path) = idl {
+                let deser = if let Some(path) = idl {
                     let pieces: Vec<&str> = path.as_str().split(":").collect();
                     if pieces.len() != 2 {
                         return Err(anyhow!(
                             "Invalid idl argument, must be <program-id>:<filepath>"
                         ));
                     }
-                    let prog_id = pieces[0].to_string();
+                    let prog_id = Pubkey::from_str(pieces[0])?;
                     let path = pieces[1].to_string();
-                    AnchorLens::new_with_idl(client, prog_id, path, true).expect("Invalid IDL file")
+                    let mut deser = AnchorDeserializer::new();
+                    deser.cache_idl_from_file(prog_id, path)?;
+                    deser
                 } else {
-                    AnchorLens::new(client)
+                    AnchorDeserializer::new()
                 };
-                let address =
+                let pubkey =
                     Pubkey::from_str(&address).map_err(|_| anyhow!("Invalid pubkey address"))?;
-                let act = lens.fetch_and_deserialize_account(&address, None)?;
+                let account = client.get_account(&pubkey).await?;
+                let act = deser.try_deserialize_account(pubkey, &account)?;
                 let json = serde_json::to_string_pretty(&act)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -195,30 +175,39 @@ impl Opt {
                 outfile,
                 idl,
             } => {
-                let url = self.url.resolve()?;
-                let commitment = self.commitment.resolve()?;
                 let client = RpcClient::new_with_commitment(url, commitment);
-
-                let lens = if let Some(path) = idl {
+                let deser = if let Some(path) = idl {
                     let pieces: Vec<&str> = path.as_str().split(":").collect();
                     if pieces.len() != 2 {
                         return Err(anyhow!(
                             "Invalid idl argument, must be <program-id>:<filepath>"
                         ));
                     }
-                    let prog_id = pieces[0].to_string();
+                    let prog_id = Pubkey::from_str(pieces[0])?;
                     let path = pieces[1].to_string();
-                    AnchorLens::new_with_idl(client, prog_id, path, true).expect("Invalid IDL file")
+                    let mut deser = AnchorDeserializer::new();
+                    deser.cache_idl_from_file(prog_id, path)?;
+                    deser
                 } else {
-                    AnchorLens::new(client)
+                    AnchorDeserializer::new()
                 };
 
                 let message = bs58::decode(b58_message)
                     .into_vec()
                     .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?;
-                let message: Message = bincode::deserialize(&message)?;
-                let message = VersionedMessage::Legacy(message);
-                let json = lens.deserialize_message(&message)?;
+                let message: v0::Message = bincode::deserialize(&message)?;
+                let message = VersionedMessage::V0(message);
+                let loaded_addresses = lookup_addresses(
+                    &client,
+                    &message,
+                ).await?;
+
+                let historical_tx = HistoricalTransaction::new(
+                    message,
+                    Some(loaded_addresses)
+                );
+
+                let json = deser.try_deserialize_transaction(historical_tx)?;
                 let json = serde_json::to_string_pretty(&json)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -237,6 +226,7 @@ enum Subcommand {
     /// Display the owner's associated token address for a given mint. Owner defaults
     /// to the configured signer.
     Ata { mint: String, owner: Option<String> },
+    // TODO Pubkey subcommand,
     /// Execute a memo transaction.
     Memo {
         /// Message
@@ -249,14 +239,6 @@ enum Subcommand {
         #[clap(short, long)]
         signer: Vec<String>,
     },
-    /// Execute a transaction on the SPL Token Faucet program.
-    /// The program is on devnet at 4bXpkKSV8swHSnwqtzuboGPaPDeEgAn4Vt8GfarV5rZt.
-    /// See https://github.com/paul-schaaf/spl-token-faucet for source code.
-    #[cfg(feature = "faucet")]
-    Faucet(FaucetSubcommand),
-    /// Execute a transaction on the SPL Name Program
-    #[cfg(feature = "name-service")]
-    NameService(NameServiceSubcommand),
     /// A vanilla RPC call to get a confirmed transaction.
     GetTransaction {
         /// Transaction signature
@@ -299,8 +281,9 @@ enum Subcommand {
     },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let opt = Opt::parse();
-    opt.process()?;
+    opt.process().await?;
     Ok(())
 }
