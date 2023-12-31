@@ -1,26 +1,28 @@
-use std::str::FromStr;
+use crate::decompile_instructions::extract_instructions_from_versioned_message;
 #[cfg(feature = "async_client")]
 use solana_client::nonblocking::rpc_client::RpcClient;
 #[cfg(feature = "client")]
 use solana_client::rpc_client;
 #[cfg(any(feature = "client", feature = "async_client"))]
-use solana_client::client_error::ClientError;
+use solana_client::{client_error::ClientError, rpc_config::RpcTransactionConfig};
 use solana_program::instruction::CompiledInstruction;
+use solana_program::message::v0::{LoadedAddresses, LoadedMessage};
 use solana_program::message::VersionedMessage;
+use solana_sdk::bs58;
+use solana_sdk::instruction::AccountMeta;
+use solana_sdk::instruction::Instruction;
+use solana_sdk::pubkey::Pubkey;
 #[cfg(any(feature = "client", feature = "async_client"))]
 use solana_sdk::signature::Signature;
-use solana_sdk::bs58;
+use solana_sdk::transaction::TransactionError;
 #[cfg(any(feature = "client", feature = "async_client"))]
 use solana_transaction_status::UiTransactionEncoding;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta, UiInnerInstructions, UiLoadedAddresses, UiInstruction, UiTransactionStatusMeta};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta,
+    UiInnerInstructions, UiInstruction, UiLoadedAddresses, UiTransactionStatusMeta,
+};
 use std::collections::HashMap;
-use solana_client::rpc_config::RpcTransactionConfig;
-use solana_program::message::v0::{LoadedMessage, LoadedAddresses};
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::instruction::Instruction;
-use solana_sdk::instruction::AccountMeta;
-use solana_sdk::transaction::TransactionError;
-use crate::decompile_instructions::extract_instructions_from_versioned_message;
+use std::str::FromStr;
 
 /// The transaction message itself, and any inner instructions extracted from it
 /// by the runtime.
@@ -49,25 +51,36 @@ impl HistoricalTransaction {
     }
 
     #[cfg(feature = "async_client")]
-    pub async fn get_nonblocking(client: &RpcClient, txid: &Signature) -> Result<Self, ClientError> {
+    pub async fn get_nonblocking(
+        client: &RpcClient,
+        txid: &Signature,
+    ) -> Result<Self, ClientError> {
         let tx = client
-            .get_transaction_with_config(txid, RpcTransactionConfig {
-                encoding: Some(UiTransactionEncoding::Base64),
-                commitment: None,
-                max_supported_transaction_version: Some(0),
-            })
+            .get_transaction_with_config(
+                txid,
+                RpcTransactionConfig {
+                    encoding: Some(UiTransactionEncoding::Base64),
+                    commitment: None,
+                    max_supported_transaction_version: Some(0),
+                },
+            )
             .await?;
         Ok(Self::try_from(tx).unwrap())
     }
 
     #[cfg(feature = "client")]
-    pub async fn get(client: &rpc_client::RpcClient, txid: &Signature) -> Result<Self, ClientError> {
-        let tx = client
-            .get_transaction_with_config(txid, RpcTransactionConfig {
+    pub async fn get(
+        client: &rpc_client::RpcClient,
+        txid: &Signature,
+    ) -> Result<Self, ClientError> {
+        let tx = client.get_transaction_with_config(
+            txid,
+            RpcTransactionConfig {
                 encoding: Some(UiTransactionEncoding::Base64),
                 commitment: None,
                 max_supported_transaction_version: Some(0),
-            })?;
+            },
+        )?;
         Ok(Self::try_from(tx).unwrap())
     }
 }
@@ -88,18 +101,24 @@ impl TryFrom<EncodedConfirmedTransactionWithStatusMeta> for HistoricalTransactio
             ..
         }) = meta
         {
-            let inner_instructions: Option<Vec<UiInnerInstructions>> = inner_instructions
-                .into();
-            let inner_instructions = extract_compiled_inner_instructions(inner_instructions.unwrap_or_default());
-            let loaded_addresses: Option<UiLoadedAddresses> = loaded_addresses
-                .into();
-            let loaded_addresses = loaded_addresses
-                .map(|ui_loaded_addresses|
-                    vec![LoadedAddresses {
-                        readonly: ui_loaded_addresses.readonly.iter().map(|s| Pubkey::from_str(s.as_str()).unwrap()).collect(),
-                        writable: ui_loaded_addresses.writable.iter().map(|s| Pubkey::from_str(s.as_str()).unwrap()).collect(),
-                    }]
-                );
+            let inner_instructions: Option<Vec<UiInnerInstructions>> = inner_instructions.into();
+            let inner_instructions =
+                extract_compiled_inner_instructions(inner_instructions.unwrap_or_default());
+            let loaded_addresses: Option<UiLoadedAddresses> = loaded_addresses.into();
+            let loaded_addresses = loaded_addresses.map(|ui_loaded_addresses| {
+                vec![LoadedAddresses {
+                    readonly: ui_loaded_addresses
+                        .readonly
+                        .iter()
+                        .map(|s| Pubkey::from_str(s.as_str()).unwrap())
+                        .collect(),
+                    writable: ui_loaded_addresses
+                        .writable
+                        .iter()
+                        .map(|s| Pubkey::from_str(s.as_str()).unwrap())
+                        .collect(),
+                }]
+            });
             (inner_instructions, loaded_addresses)
         } else {
             (HashMap::<u8, Vec<CompiledInstruction>>::new(), None)
@@ -149,51 +168,44 @@ pub struct DecompiledMessageAndInnerIx {
 
 impl DecompiledMessageAndInnerIx {
     pub fn programs(&self) -> Vec<Pubkey> {
-        let mut program_ids: Vec<Pubkey> = self.top_level_instructions
+        let mut program_ids: Vec<Pubkey> = self
+            .top_level_instructions
             .iter()
             .map(|ix| ix.program_id)
             .collect();
-        self.inner_instructions
-            .iter()
-            .for_each(|(_, inner_ixs)| {
-                program_ids.extend(
-                    inner_ixs.iter().map(|ix| ix.program_id)
-                )
-            });
+        self.inner_instructions.iter().for_each(|(_, inner_ixs)| {
+            program_ids.extend(inner_ixs.iter().map(|ix| ix.program_id))
+        });
         program_ids
     }
 }
 
 impl From<HistoricalTransaction> for DecompiledMessageAndInnerIx {
     fn from(value: HistoricalTransaction) -> Self {
-        let loaded_addresses = LoadedAddresses::from_iter(value.loaded_addresses.unwrap_or_default());
+        let loaded_addresses =
+            LoadedAddresses::from_iter(value.loaded_addresses.unwrap_or_default());
         let addrs: Vec<Pubkey> = match &value.message {
-            VersionedMessage::Legacy(message) => {
-                message.account_keys.clone()
-            },
+            VersionedMessage::Legacy(message) => message.account_keys.clone(),
             VersionedMessage::V0(message) => {
                 let message = LoadedMessage::new_borrowed(message, &loaded_addresses);
-                message
-                    .account_keys()
-                    .iter()
-                    .map(|p| *p)
-                    .collect()
-            },
-        };
-        let is_writable = |idx| {
-            match &value.message {
-                VersionedMessage::Legacy(m) => m.is_writable(idx),
-                VersionedMessage::V0(m) => LoadedMessage::new_borrowed(m, &loaded_addresses).is_writable(idx),
+                message.account_keys().iter().map(|p| *p).collect()
             }
         };
-        let is_signer = |idx| {
-            match &value.message {
-                VersionedMessage::Legacy(m) => m.is_signer(idx),
-                VersionedMessage::V0(m) => LoadedMessage::new_borrowed(m, &loaded_addresses).is_signer(idx),
+        let is_writable = |idx| match &value.message {
+            VersionedMessage::Legacy(m) => m.is_writable(idx),
+            VersionedMessage::V0(m) => {
+                LoadedMessage::new_borrowed(m, &loaded_addresses).is_writable(idx)
+            }
+        };
+        let is_signer = |idx| match &value.message {
+            VersionedMessage::Legacy(m) => m.is_signer(idx),
+            VersionedMessage::V0(m) => {
+                LoadedMessage::new_borrowed(m, &loaded_addresses).is_signer(idx)
             }
         };
 
-        let top_level_instructions = extract_instructions_from_versioned_message(&value.message, &loaded_addresses);
+        let top_level_instructions =
+            extract_instructions_from_versioned_message(&value.message, &loaded_addresses);
 
         let mut inner_instructions = HashMap::new();
         for (idx, compiled_instructions) in value.inner_instructions {
@@ -205,10 +217,8 @@ impl From<HistoricalTransaction> for DecompiledMessageAndInnerIx {
                         let idx = *idx as usize;
                         let is_signer = is_signer(idx);
                         if is_writable(idx) {
-                            account_metas.push(AccountMeta::new(
-                                *addrs.get(idx).unwrap(),
-                                is_signer,
-                            ));
+                            account_metas
+                                .push(AccountMeta::new(*addrs.get(idx).unwrap(), is_signer));
                         } else {
                             account_metas.push(AccountMeta::new_readonly(
                                 *addrs.get(idx).unwrap(),
@@ -220,10 +230,7 @@ impl From<HistoricalTransaction> for DecompiledMessageAndInnerIx {
                     Instruction::new_with_bytes(*program, &ix.data, account_metas)
                 })
                 .collect();
-            inner_instructions.insert(
-                idx,
-                inner_ix,
-            );
+            inner_instructions.insert(idx, inner_ix);
         }
 
         DecompiledMessageAndInnerIx {

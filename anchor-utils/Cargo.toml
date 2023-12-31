@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 default = ["client"]
-client = ["solana-client", "solana-devtools-tx/client", "solana-devtools-tx/async_client", "solana-devtools-tx/async-trait"]
+client = ["solana-client", "solana-devtools-tx/client", "solana-devtools-tx/async_client"]
 
 [dependencies]
 anchor-lang = { workspace = true }

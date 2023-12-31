@@ -57,7 +57,8 @@ fn test1() {
             .to_account_metas(None),
         ),
     ]
-    .sanitized_message(Some(&Payer.address()));
+    .sanitized_message(Some(&Payer.address()))
+    .unwrap();
     let result = mock_runtime.process(&msg).unwrap();
     println!("{:#?}", result.logs);
     assert!(result.execution_error.is_none());
@@ -85,7 +86,8 @@ fn test2() {
         10,
         &Pubkey::default(),
     )]
-    .sanitized_message(Some(&Payer.address()));
+    .sanitized_message(Some(&Payer.address()))
+    .unwrap();
     // This test uses an independent runtime instance,
     // so no matter the order of the cargo test execution, this will not fail.
     let result = mock_runtime.process(&msg).unwrap();
@@ -111,9 +113,10 @@ fn test3() {
             None,
             5,
         )
-            .unwrap(),
+        .unwrap(),
     ]
-        .sanitized_message(Some(&Payer.address()));
+    .sanitized_message(Some(&Payer.address()))
+    .unwrap();
     let result = mock_runtime.process_and_update_accounts(&msg).unwrap();
     // `process_and_update_accounts` will only update account state on successful transactions
     assert!(!result.success());

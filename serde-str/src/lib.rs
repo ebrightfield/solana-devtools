@@ -7,7 +7,7 @@
 //! ```
 //! use solana_sdk::pubkey::Pubkey;
 //! use solana_sdk::signature::Signature;
-//! use crate::serde_pubkey_str::{pubkey, option_signature};
+//! use crate::solana_devtools_serde::{pubkey, option_signature};
 //!
 //! #[derive(serde::Serialize, serde::Deserialize)]
 //!  pub struct MyStruct {

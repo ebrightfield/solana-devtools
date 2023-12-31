@@ -38,16 +38,16 @@ or omit them and default to what is configured as shown when you `solana config 
 
 The arg values are retrievable in code as follows:
 ```
+let opt = Opt::into_app();
+
 // Get the URL
-let url = self.url.resolve()?;
+let url = opt.url.resolve(None)?;
 // Get the commitment
-let commitment = self.commitment.resolve()?;
+let commitment = opt.commitment.resolve(None)?;
 
 // Now you can create an `RpcClient` with the given configuration.
 let client = RpcClient::new_with_commitment(url, commitment);
 
-// Getting the keypair requires getting the Clap `ArgMatches`
-let app = Opt::into_app();
-let matches = app.get_matches();
-let payer = self.keypair.resolve(&matches)?;
+// Get the signer
+let payer = opt.keypair.resolve(None)?;
 ```
