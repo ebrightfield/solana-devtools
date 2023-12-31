@@ -1,0 +1,18 @@
+[package]
+name = "solana-devtools-monitoring"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-version = { workspace = true }
+anchor-lang = { workspace = true }
+futures-util = "0.3.29"
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+regex = "1"
+base64 = { workspace = true }

@@ -1,16 +1,23 @@
 [package]
 name = "solana-devtools-signers"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "An assortment of useful signer types for Solana development"
 
 [[example]]
 name = "usb"
 
+[features]
+default = ["serde_json", "base64"]
+remote-wallet = ["solana-remote-wallet"]
+
 [dependencies]
 anyhow = "1.0.68"
+serde_json = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+tiny-bip39 = "0.8.2"
 solana-sdk = { workspace = true }
 solana-program = { workspace = true }
-solana-remote-wallet = { workspace = true }
-solana-clap-v3-utils = { workspace = true }
+solana-remote-wallet = { workspace = true, optional = true }
 uriparse = "0.6.4"
+rpassword = "7"

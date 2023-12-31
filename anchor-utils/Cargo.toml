@@ -1,21 +1,31 @@
 [package]
-name = "anchor-transaction-deser"
+name = "solana-devtools-anchor-utils"
 authors = ["Eric Brightfield"]
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["client"]
+client = ["solana-client", "solana-devtools-tx/client", "solana-devtools-tx/async_client", "solana-devtools-tx/async-trait"]
+
 [dependencies]
+anchor-lang = { workspace = true }
 anchor-syn = { workspace = true }
 anyhow = "1.0.66"
 serde_json = { version  = "1.0.88", features = ["preserve_order"] }
 serde = "1.0.148"
 borsh = "0.9.3"
 heck = "0.3.1"
-solana-client = { workspace = true }
+solana-client = { workspace = true, optional = true }
 solana-program = { workspace = true }
 solana-sdk = { workspace = true }
 solana-account-decoder = { workspace = true }
 solana-transaction-status = { workspace = true }
+solana-devtools-tx = {workspace = true}
+solana-devtools-serde = {workspace = true}
 flate2 = "1.0.24"
 base64 = "0.20.0-alpha.1"
 bincode = "2.0.0-rc.2"
+
+[dev-dependencies]
+tokio = { workspace = true }

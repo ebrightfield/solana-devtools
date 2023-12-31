@@ -1,40 +1,46 @@
-use anyhow::{anyhow, Result};
-use clap::{ArgMatches, Parser, ValueEnum};
-use solana_clap_v3_utils::input_validators::normalize_to_url_if_moniker;
-use solana_clap_v3_utils::keypair::signer_from_path;
+//! Put these Clap arg structs (flattened) at the top level of a Clap CLI
+//! made with the Derive API to add the `-u/--url`, `--commitment`, and
+//! `-k/--keypair` CLI args as they behave in the Solana CLI.
+use clap::{Parser, ValueEnum};
 use solana_cli_config::Config;
+use solana_devtools_signers::concrete_signer::ConcreteSigner;
 use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::signature::Signer;
+use std::io;
 use std::str::FromStr;
 
-/// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
-/// `-u/--url` CLI arg as it functions in the official Solana CLI.
-/// This allows for manual specification of a cluster url,
-/// or otherwise defaulting to the Solana CLI config file.
+fn normalize_to_url_if_moniker<T: AsRef<str>>(url_or_moniker: T) -> String {
+    match url_or_moniker.as_ref() {
+        "m" | "mainnet-beta" => "https://api.mainnet-beta.solana.com",
+        "t" | "testnet" => "https://api.testnet.solana.com",
+        "d" | "devnet" => "https://api.devnet.solana.com",
+        "l" | "localhost" => "http://localhost:8899",
+        url => url,
+    }
+    .to_string()
+}
+
+/// Specify an RPC URL for RPC client requests.
 #[derive(Debug, Parser)]
 pub struct UrlArg {
-    /// The target URL for the cluster. See Solana CLI documentation on how to use this.
-    /// Default values and usage patterns are identical to Solana CLI.
     #[clap(short, long)]
+    #[cfg_attr(feature = "env", clap(env = "SOLANA_RPC_URL"))]
     pub url: Option<String>,
 }
 
 impl UrlArg {
-    pub fn resolve(&self) -> Result<String> {
+    /// Resolve to a `String` if specified in a [clap] `-u/--url` CLI argument,
+    /// or from the `commitment` field in a [Config] struct.
+    /// Looks at `~/.config/solana/cli/config.json` if `None` is provided.
+    pub fn resolve(&self, config: Option<Config>) -> Result<String, io::Error> {
         if let Some(url) = self.url.clone() {
             let url = normalize_to_url_if_moniker(url);
             return Ok(url);
         }
-        let config = get_solana_cli_config()?;
+        let config = config.unwrap_or(load_default_solana_cli_config()
+            .map_err(|e| io::Error::new(
+                io::ErrorKind::Other,
+                format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)))?);
         return Ok(normalize_to_url_if_moniker(config.json_rpc_url));
-    }
-
-    pub fn resolve_with_config(&self, config: &Config) -> Result<String> {
-        if let Some(url) = self.url.clone() {
-            let url = normalize_to_url_if_moniker(url);
-            return Ok(url);
-        }
-        return Ok(normalize_to_url_if_moniker(config.json_rpc_url.clone()));
     }
 }
 
@@ -56,90 +62,93 @@ impl Into<CommitmentConfig> for CommitmentLevel {
     }
 }
 
+/// Specify a commitment level for RPC client requests.
 #[derive(Debug, Parser)]
 pub struct CommitmentArg {
     #[clap(short, long, value_enum)]
+    #[cfg_attr(feature = "env", clap(env = "SOLANA_RPC_COMMITMENT"))]
     pub commitment: Option<CommitmentLevel>,
 }
 
 impl CommitmentArg {
-    pub fn resolve(&self) -> Result<CommitmentConfig> {
-        if let Some(commitment) = self.commitment.clone() {
-            return Ok(commitment.into());
-        }
-        let config = get_solana_cli_config()?;
-        return Ok(CommitmentConfig::from_str(&config.commitment)?);
-    }
-
-    pub fn resolve_with_config(&self, config: &Config) -> Result<CommitmentConfig> {
-        if let Some(commitment) = self.commitment.clone() {
-            return Ok(commitment.into());
-        }
-        return Ok(CommitmentConfig::from_str(&config.commitment)?);
+    /// Resolve to a [CommitmentConfig] if specified in a [clap] `--commitment` CLI argument,
+    /// or from the `commitment` field in a [Config] struct.
+    /// Looks at `~/.config/solana/cli/config.json` if `None` is provided.
+    pub fn resolve(self, config: Option<Config>) -> Result<CommitmentConfig, io::Error> {
+        Into::<Option<CommitmentConfig>>::into(self).map_or_else (
+            || {
+                let config = config.unwrap_or(load_default_solana_cli_config()?);
+                CommitmentConfig::from_str(&config.commitment)
+                    .map_err(|e| io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)
+                    ))
+            },
+            |commitment| Ok(commitment)
+        )
     }
 }
 
-/// Put this (flattened) at the top level of a Clap CLI made with the Derive API to add the
-/// `-k/--keypair` CLI arg as it functions in the Solana CLI.
-/// This allows for manual specification of a signing keypair,
-/// or otherwise defaulting to the Solana CLI config file.
-/// `--skip_phrase_validation` and `--confirm-key` are necessary because
-/// signer resolution uses [solana_clap_v3_utils::keypair::signer_from_path].
+impl Default for CommitmentArg {
+    fn default() -> Self {
+        Self { commitment: Some(CommitmentLevel::Finalized) }
+    }
+}
+
+impl Into<Option<CommitmentConfig>> for CommitmentArg {
+    fn into(self) -> Option<CommitmentConfig> {
+        self.commitment.map(|commitment| commitment.into())
+    }
+}
+
+/// Specify a keypair according to `file://`, `usb://`, `stdin://`, `prompt://`, `presign://` URIs,
+/// and an optional BIP-44 derivation path as the URI query param`?key={account}/{change}`.
+/// URI parsing behavior is a super-set of the Solana CLI interface.
 #[derive(Debug, Parser)]
 pub struct KeypairArg {
     /// The target signer for transactions. See Solana CLI documentation on how to use this.
     /// Default values and usage patterns are identical to Solana CLI.
     #[clap(short, long)]
+    #[cfg_attr(feature = "env", clap(env = "SOLANA_KEYPAIR_URI"))]
     pub keypair: Option<String>,
-    /// Skip BIP-39 seed phrase validation (not recommended)
-    #[clap(long, name = "skip_seed_phrase_validation")]
-    pub skip_seed_phrase_validation: bool,
-    /// Manually confirm the signer before proceeding
-    #[clap(long, name = "confirm_key")]
-    pub confirm_key: bool,
 }
 
 impl KeypairArg {
-    pub fn resolve(&self, matches: &ArgMatches) -> Result<Box<dyn Signer>> {
-        if let Some(keypair_path) = self.keypair.clone() {
-            return parse_signer(matches, keypair_path.as_str());
+    /// Resolve to a [ConcreteSigner] from a URI path specified in a `-k/--keypair`,
+    /// or from a URI path in the `keypair_path` field of a [Config] struct.
+    /// Looks at `~/.config/solana/cli/config.json` if `None` is provided.
+    pub fn resolve(self, config: Option<Config>) -> Result<ConcreteSigner, io::Error> {
+        if let Some(keypair_path) = self.keypair {
+            ConcreteSigner::from_str(&keypair_path).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!(
+                        "could not interpret supplied keypair URI: {} error: {}",
+                        keypair_path, e
+                    ),
+                )
+            })
+        } else {
+            let config = config.unwrap_or(load_default_solana_cli_config()
+                .map_err(|e| io::Error::new(io::ErrorKind::Other,
+                    format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)))?
+            );
+            ConcreteSigner::from_str(&config.keypair_path)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other,
+                    format!("could not interpret keypair URI {} in ~/.config/solana/cli/config.yaml error: {}",
+                            config.keypair_path, e)))
         }
-        let config = get_solana_cli_config()?;
-        parse_signer(matches, &config.keypair_path)
     }
-
-    pub fn resolve_with_config(
-        &self,
-        matches: &ArgMatches,
-        config: &Config,
-    ) -> Result<Box<dyn Signer>> {
-        if let Some(keypair_path) = self.keypair.clone() {
-            return parse_signer(matches, keypair_path.as_str());
-        }
-        return parse_signer(matches, &config.keypair_path);
-    }
-}
-
-/// Branch over the possible ways that signers can be specified via user input.
-/// This basically does what `-k/--keypair` does, on a specific input string,
-/// with disregard to filesystem configuration. It is useful for situations
-/// where additional signers may be specified, e.g. grinding for an address and using
-/// it as a signer when creating a multisig account.
-fn parse_signer(matches: &ArgMatches, path: &str) -> Result<Box<dyn Signer>> {
-    let mut wallet_manager = None;
-    let signer = signer_from_path(matches, path, "keypair", &mut wallet_manager)
-        .map_err(|e| anyhow!("Could not resolve signer: {:?}", e))?;
-    Ok(signer)
 }
 
 /// Load configuration from the standard Solana CLI config path.
-/// Those config values are used as defaults at runtime whenever
-/// keypair and/or url are not explicitly passed in.
-/// This can possibly fail if there is no Solana CLI installed, nor a config file
-/// at the expected location.
-pub fn get_solana_cli_config() -> Result<Config> {
+/// For other filepaths, use [Config::load] directly.
+pub fn load_default_solana_cli_config() -> Result<Config, io::Error> {
     let config_file = solana_cli_config::CONFIG_FILE
         .as_ref()
-        .ok_or_else(|| anyhow!("unable to determine a config file path on this OS or user"))?;
-    Config::load(&config_file).map_err(|e| anyhow!("unable to load config file: {}", e.to_string()))
+        .ok_or(io::Error::new(
+            io::ErrorKind::Other,
+            "unable to determine a config file path: no home directory on this OS or user",
+        ))?;
+    Config::load(&config_file)
 }

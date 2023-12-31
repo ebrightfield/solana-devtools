@@ -1,12 +1,13 @@
+pub mod decompile_instructions;
+pub mod inner_instructions;
+
 /// Define a struct representing a transaction schema.
 /// Implementing [TransactionSchema] allows for a number of
 /// approaches to processing the transaction.
 use solana_sdk::hash::Hash;
-use solana_sdk::instruction::{AccountMeta, Instruction};
+use solana_sdk::instruction::Instruction;
 use solana_sdk::message::{Message, SanitizedMessage, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
-#[cfg(feature = "client")]
-use solana_sdk::signature::Signature;
 use solana_sdk::signers::Signers;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 
@@ -14,7 +15,6 @@ use solana_sdk::transaction::{Transaction, VersionedTransaction};
 /// or lists of serialized instructions.
 /// Any type `T` where `&T: Into<Vec<Instruction>>` implements this trait. By extension,
 /// `&[Instruction]` and `Vec<Instruction>` also implements this trait.
-#[cfg_attr(feature = "async_client", async_trait::async_trait)]
 pub trait TransactionSchema {
     /// Return an unsigned transaction
     fn unsigned_transaction(&self, payer: Option<&Pubkey>) -> VersionedTransaction;
@@ -66,23 +66,13 @@ pub trait TransactionSchema {
             .collect()
     }
 
-    #[cfg(feature = "client")]
-    fn sign_and_send<S: Signers>(
-        &self,
-        client: &solana_client::rpc_client::RpcClient,
-        payer: &Pubkey,
-        signers: &S,
-        blockhash: Option<Hash>,
-    ) -> solana_client::client_error::Result<Signature>;
-
-    #[cfg(feature = "async_client")]
-    async fn sign_and_send_nonblocking<S: Signers>(
-        &self,
-        client: &solana_client::nonblocking::rpc_client::RpcClient,
-        payer: &Pubkey,
-        signers: &S,
-        blockhash: Option<Hash>,
-    ) -> solana_client::client_error::Result<Signature>;
+    fn programs(&self) -> Vec<Pubkey> {
+        let ixs: Vec<Instruction> = self.instructions();
+        ixs
+            .into_iter()
+            .map(|ix| ix.program_id)
+            .collect()
+    }
 }
 
 impl<T: ?Sized> TransactionSchema for T
@@ -112,57 +102,6 @@ where
     fn instructions(&self) -> Vec<Instruction> {
         self.into()
     }
-
-    #[cfg(feature = "client")]
-    fn sign_and_send<S: Signers>(
-        &self,
-        client: &solana_client::rpc_client::RpcClient,
-        payer: &Pubkey,
-        signers: &S,
-        blockhash: Option<Hash>,
-    ) -> solana_client::client_error::Result<Signature> {
-        let blockhash = blockhash.unwrap_or(client.get_latest_blockhash()?);
-        let transaction = self.transaction(blockhash, Some(payer), signers);
-        client.send_transaction(&transaction)
-    }
-
-    #[cfg(feature = "async_client")]
-    async fn sign_and_send_nonblocking<S: Signers>(
-        &self,
-        client: &solana_client::nonblocking::rpc_client::RpcClient,
-        payer: &Pubkey,
-        signers: &S,
-        blockhash: Option<Hash>,
-    ) -> solana_client::client_error::Result<Signature> {
-        let blockhash = blockhash.unwrap_or(client.get_latest_blockhash().await?);
-        let transaction = self.transaction(blockhash, Some(payer), signers);
-        client.send_transaction(&transaction).await
-    }
-}
-
-/// [Transaction] objects do not have setters,
-/// so it is useful to be able to extract the instructions to replace
-/// replace payer, signer, or blockhash, or apply [TransactionSchema] methods.
-pub fn extract_instructions(tx: Transaction) -> Vec<Instruction> {
-    let message = SanitizedMessage::try_from(tx.message).unwrap();
-    message
-        .decompile_instructions()
-        .iter()
-        .map(|ix| {
-            Instruction::new_with_bytes(
-                *ix.program_id,
-                ix.data,
-                ix.accounts
-                    .iter()
-                    .map(|act| AccountMeta {
-                        pubkey: *act.pubkey,
-                        is_signer: act.is_signer,
-                        is_writable: act.is_writable,
-                    })
-                    .collect(),
-            )
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -171,6 +110,7 @@ mod tests {
     use solana_sdk::signature::Keypair;
     use solana_sdk::signer::Signer;
     use spl_memo::build_memo;
+    use crate::decompile_instructions::extract_instructions_from_message;
 
     struct MemoType(String);
 
@@ -186,6 +126,16 @@ mod tests {
         fn into(self) -> Vec<Instruction> {
             vec![build_memo(b"hello world", &[])]
         }
+    }
+
+    fn _test_func(t: impl TransactionSchema) {
+        let _ = t.transaction(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = t.signed_serialized(Hash::new_unique(), Some(&key.pubkey()), &vec![&key]);
+        let _ = t.message(None);
+        let _ = t.unsigned_transaction(None);
+        let _ = t.unsigned_serialized(None);
+        let _ = t.instructions();
+        let _ = t.instructions_serialized();
     }
 
     #[test]
@@ -242,7 +192,7 @@ mod tests {
             &[&keypair],
             Hash::new_unique(),
         );
-        let ixs = extract_instructions(tx);
+        let ixs = extract_instructions_from_message(tx.message);
 
         let new_signer = Keypair::new();
 
