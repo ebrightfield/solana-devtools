@@ -20,7 +20,10 @@ use solana_sdk::transaction::{Transaction, VersionedTransaction};
 /// `&[Instruction]` and `Vec<Instruction>` also implements this trait.
 pub trait TransactionSchema: Sized {
     /// Return an unsigned transaction
-    fn unsigned_transaction(self, payer: Option<&Pubkey>) -> VersionedTransaction;
+    fn unsigned_transaction(self, payer: Option<&Pubkey>) -> VersionedTransaction {
+        let ixs: Vec<Instruction> = self.instructions();
+        VersionedTransaction::from(Transaction::new_unsigned(Message::new(&ixs, payer)))
+    }
 
     /// Return an unsigned transaction, serialized.
     /// Good for sending over the wire to request a signature.
@@ -50,18 +53,23 @@ pub trait TransactionSchema: Sized {
     }
 
     /// Return a signed transaction.
-    fn transaction<S: Signers>(
+    fn transaction(
         self,
         blockhash: Hash,
         payer: Option<&Pubkey>,
-        signers: &S,
-    ) -> VersionedTransaction;
+        signers: &impl Signers,
+    ) -> VersionedTransaction {
+        let ixs: Vec<Instruction> = self.instructions();
+        VersionedTransaction::from(Transaction::new_signed_with_payer(
+            &ixs, payer, signers, blockhash,
+        ))
+    }
 
-    fn transaction_v0<S: Signers>(
+    fn transaction_v0(
         self,
         blockhash: Hash,
         payer: &Pubkey,
-        signers: &S,
+        signers: &impl Signers,
         lookups: &[AddressLookupTableAccount],
     ) -> Result<VersionedTransaction, SignerError> {
         let message_v0 = self
@@ -71,11 +79,11 @@ pub trait TransactionSchema: Sized {
     }
 
     /// Return a signed transaction, serialized
-    fn signed_serialized<S: Signers>(
+    fn signed_serialized(
         self,
         blockhash: Hash,
         payer: Option<&Pubkey>,
-        signers: &S,
+        signers: &impl Signers,
     ) -> Vec<u8> {
         let tx = self.transaction(blockhash, payer, signers);
         bincode::serialize(&tx).expect("transaction failed to serialize")
@@ -102,26 +110,6 @@ impl<T: Sized> TransactionSchema for T
 where
     T: Into<Vec<Instruction>>,
 {
-    /// Return an unsigned transaction
-    fn unsigned_transaction(self, payer: Option<&Pubkey>) -> VersionedTransaction {
-        let ixs: Vec<Instruction> = self.instructions();
-        VersionedTransaction::from(Transaction::new_unsigned(Message::new(&ixs, payer)))
-    }
-
-    /// Return a signed transaction.
-    fn transaction<S: Signers>(
-        self,
-        blockhash: Hash,
-        payer: Option<&Pubkey>,
-        signers: &S,
-    ) -> VersionedTransaction {
-        let ixs: Vec<Instruction> = self.instructions();
-        VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &ixs, payer, signers, blockhash,
-        ))
-    }
-
-    /// Return the instructions.
     fn instructions(self) -> Vec<Instruction> {
         self.into()
     }

@@ -1,10 +1,13 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use crate::localnet_account::{LocalnetAccount, UiAccountWithAddr};
-#[cfg(feature = "mock-runtime")]
-use solana_mock_runtime::MockSolanaRuntime;
-use solana_program::pubkey::Pubkey;
+#[cfg(feature = "solana-devtools-simulator")]
+pub use crate::TransactionSimulator;
+use solana_program_test::ProgramTest;
+use solana_sdk::{
+    account::AccountSharedData, bpf_loader_upgradeable,
+    bpf_loader_upgradeable::UpgradeableLoaderState, pubkey::Pubkey,
+};
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "mock-runtime")]
 use std::io::Read;
 use std::{
     fs::{self, read_dir, File},
@@ -30,6 +33,7 @@ pub struct LocalnetConfiguration {
     /// CLI flags to `solana-test-validator`. The flags should not contain dashes.
     /// e.g. "reset".
     pub test_validator_flags: Vec<String>,
+    /// Output directory to write JSON files before starting a `solana-test-validator`.
     pub json_outdir: Option<String>,
 }
 
@@ -38,6 +42,8 @@ impl LocalnetConfiguration {
         Self::default()
     }
 
+    /// Primarily useful for cases where you're going to use a [LocalnetConfiguration]
+    /// to instantiate a `solana-test-validator`.
     pub fn with_outdir(json_outdir: &str) -> Self {
         Self {
             json_outdir: Some(json_outdir.to_string()),
@@ -45,6 +51,7 @@ impl LocalnetConfiguration {
         }
     }
 
+    /// Load JSON files into a [LocalnetConfiguration].
     pub fn from_dir<P: AsRef<Path>>(dir: P) -> Result<Self> {
         let mut accounts = HashMap::new();
         let mut duplicate_pubkeys: Vec<UiAccountWithAddr> = vec![];
@@ -112,10 +119,63 @@ impl LocalnetConfiguration {
         Ok(self)
     }
 
+    /// Add raw binary program data as a BPF upgradeable program. For programs that are not
+    /// going to change, like dependency programs your program relies on, this is the preferred
+    /// way to add programs, because you can use `include_bytes!` and place your binaries
+    /// in relation to source code in a way that is easier to configure than with relative paths
+    /// that might change depending on where you execute your tests.
+    pub fn program_binary_data(
+        self,
+        program_binary_name: &str,
+        program_id: Pubkey,
+        program_data: &[u8],
+    ) -> Result<Self> {
+        let programdata_address = Pubkey::new_unique();
+        let program = LocalnetAccount {
+            address: program_id,
+            name: program_binary_name.to_string(),
+            lamports: 1,
+            data: bincode::serialize(&UpgradeableLoaderState::Program {
+                programdata_address,
+            })
+            .unwrap(),
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+
+        let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+            slot: 0,
+            upgrade_authority_address: None,
+        })
+        .unwrap();
+        data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+        data.extend_from_slice(program_data);
+        let program_data = LocalnetAccount {
+            address: programdata_address,
+            name: format!("{}_data", program_binary_name),
+            lamports: 1,
+            data,
+            owner: bpf_loader_upgradeable::ID,
+            executable: true,
+            rent_epoch: 0,
+        }
+        .into();
+        let this = self.accounts([program, program_data])?;
+        Ok(this)
+    }
+
     /// If the provided program binary file path is a relative path, it is interpreted
-    /// from the root of the crate being invoked with `cargo`.
-    pub fn program(mut self, program_id: Pubkey, program_binary_file: &str) -> Result<Self> {
-        let program_binary_file = {
+    /// from the root of the crate when executed through `cargo`.
+    /// The program is added as a BPF upgradeable program in `self.accounts`.
+    /// The filepath is only retained for the case where a `solana-test-validator` will be created.
+    pub fn program_binary_file(
+        mut self,
+        program_id: Pubkey,
+        program_binary_file: &str,
+    ) -> Result<Self> {
+        let path = {
             let path = Path::new(program_binary_file);
             if path.is_relative() {
                 std::env::var("CARGO_MANIFEST_DIR")
@@ -132,20 +192,31 @@ impl LocalnetConfiguration {
                 program_id.to_string(),
             ));
         }
-        if File::open(&program_binary_file).is_err() {
+        let mut file = File::open(&path).map_err(|e| {
             eprintln!("Working directory: {:?}", std::env::current_dir());
-            return Err(LocalnetConfigurationError::MissingProgramSoFile(
-                program_binary_file,
-            ));
-        }
-        self.programs.insert(program_id, program_binary_file);
-        Ok(self)
+            LocalnetConfigurationError::FileReadWriteError(path.clone(), e)
+        })?;
+        let name = Path::new(&path)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let mut data = vec![];
+        let _ = file
+            .read_to_end(&mut data)
+            .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
+        self.programs.insert(program_id, path);
+        self.program_binary_data(&name, program_id, &data)
     }
 
+    /// Add a `solana-test-validator` CLI argument to include on every startup.
     pub fn add_test_validator_arg(&mut self, key: String, value: String) {
         self.test_validator_args.insert(key, value);
     }
 
+    /// Add a `solana-test-validator` CLI flag to include on every startup.
     pub fn add_test_validator_flag(&mut self, flag: String) {
         self.test_validator_flags.push(flag);
     }
@@ -164,8 +235,10 @@ impl LocalnetConfiguration {
                 return Err(LocalnetConfigurationError::NoOutputDirectory);
             }
         };
-        for (_, act) in &self.accounts {
-            act.write_to_validator_json_file(&path_prefix, overwrite)?;
+        for (pubkey, act) in &self.accounts {
+            if !self.programs.contains_key(pubkey) {
+                act.write_to_validator_json_file(&path_prefix, overwrite)?;
+            }
         }
         Ok(())
     }
@@ -176,6 +249,7 @@ impl LocalnetConfiguration {
         script.extend(
             self.accounts
                 .iter()
+                .filter(|(pubkey, _)| !self.programs.contains_key(pubkey))
                 .map(|(_, act)| act.js_import())
                 .collect::<Vec<String>>(),
         );
@@ -198,16 +272,22 @@ impl LocalnetConfiguration {
             .unwrap_or_else(|| {
                 json_outdir.expect("no json_outdir specified, cannot load localnet accounts")
             });
-        let mut args = dedup_vec(self.test_validator_flags.clone());
+        let mut args: Vec<String> = {
+            // dedupe
+            let set: HashSet<_> = self.test_validator_flags.clone().into_iter().collect();
+            set.into_iter().collect()
+        };
         for (k, v) in &self.test_validator_args {
             args.push(k.clone());
             args.push(v.clone());
         }
         args.extend(additional_args);
         for (pubkey, account) in &self.accounts {
-            args.push("--account".to_string());
-            args.push(pubkey.to_string());
-            args.push(account.json_output_path(&path_prefix));
+            if !self.programs.contains_key(pubkey) {
+                args.push("--account".to_string());
+                args.push(pubkey.to_string());
+                args.push(account.json_output_path(&path_prefix));
+            }
         }
         for (pubkey, path) in &self.programs {
             args.push("--bpf-program".to_string());
@@ -228,35 +308,28 @@ impl LocalnetConfiguration {
     pub fn get_program(&self, pubkey: &Pubkey) -> Option<&str> {
         self.programs.get(pubkey).map(|path| path.as_str())
     }
+
+    /// Also reads BPF program binaries into the accounts.
+    pub fn dump_accounts(&self) -> HashMap<Pubkey, AccountSharedData> {
+        HashMap::from_iter(self.accounts.iter().map(|(p, act)| (*p, act.into())))
+    }
 }
 
-fn dedup_vec(mut vec: Vec<String>) -> Vec<String> {
-    let mut set = HashSet::new();
-    vec.retain(|e| set.insert(e.clone()));
-    vec
+#[cfg(feature = "solana-devtools-simulator")]
+impl Into<TransactionSimulator> for &LocalnetConfiguration {
+    fn into(self) -> TransactionSimulator {
+        TransactionSimulator::new_with_accounts(&self.accounts)
+    }
 }
-#[cfg(feature = "mock-runtime")]
-impl TryInto<MockSolanaRuntime> for &LocalnetConfiguration {
-    type Error = LocalnetConfigurationError;
 
-    fn try_into(self) -> Result<MockSolanaRuntime> {
-        let mut mock_runtime = MockSolanaRuntime::new_with_spl_and_builtins()
-            .map_err(|e| LocalnetConfigurationError::EbpfError(e.to_string()))?;
+impl Into<ProgramTest> for &LocalnetConfiguration {
+    fn into(self) -> ProgramTest {
+        let mut program_test = ProgramTest::default();
 
-        //let accounts = accounts_from_localnet_configuration(self)?;
-        let accounts = HashMap::from_iter(
-            self.accounts
-                .iter()
-                .map(|(pubkey, act)| (*pubkey, act.into())),
-        );
-        mock_runtime.update_accounts(&accounts);
-        for (program_id, path) in &self.programs {
-            let mut data = vec![];
-            let _ = File::open(path)
-                .map(|mut f| f.read_to_end(&mut data))
-                .map_err(|e| LocalnetConfigurationError::FileReadWriteError(path.clone(), e))?;
-            mock_runtime.add_program_from_bytes(*program_id, &data);
+        for (pubkey, act) in &self.accounts {
+            program_test.add_account(*pubkey, act.into());
         }
-        Ok(mock_runtime)
+
+        program_test
     }
 }

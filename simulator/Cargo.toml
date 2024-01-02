@@ -1,5 +1,5 @@
 [package]
-name = "solana-mock-runtime"
+name = "solana-devtools-simulator"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,12 +11,20 @@ anchor = ["anchor-lang"]
 solana-sdk = { workspace = true }
 solana-program = { workspace = true }
 solana-program-runtime = { workspace = true }
+solana-program-test = { workspace = true }
+solana-banks-client = { workspace = true }
+solana-banks-interface = { workspace = true }
+solana-banks-server = { workspace = true }
+solana-vote-program = { workspace = true }
 solana-runtime = { workspace = true }
 solana-bpf-loader-program = { workspace = true }
 solana_rbpf = { workspace = true }
 bincode = { workspace = true }
 lazy_static = { workspace = true }
 anchor-lang = { workspace = true, optional = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
 
 [dev-dependencies]
 anchor-lang = { workspace = true }

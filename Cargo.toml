@@ -5,10 +5,10 @@ members = [
     "cli-config",
     "extra-signers",
     "localnet",
-    "mock_runtime",
     "monitoring",
     "rpc",
     "serde-str",
+    "simulator",
     "transaction",
 ]
 resolver = "2"
@@ -29,6 +29,10 @@ solana-program-test = "<1.16.24"
 solana-sdk = "<1.16.24"
 solana-account-decoder = "<1.16.24"
 solana-remote-wallet = "<1.16.24"
+solana-banks-server = "<1.16.24"
+solana-banks-interface = "<1.16.24"
+solana-banks-client = "<1.16.24"
+solana-vote-program = "<1.16.24"
 solana-rpc-client = "<1.16.24"
 solana-transaction-status = "<1.16.24"
 solana-clap-v3-utils = "<1.16.24"
@@ -54,5 +58,5 @@ solana-devtools-serde = { path = "serde-str" }
 solana-devtools-signers = { path = "extra-signers" }
 solana-devtools-localnet = { path = "localnet" }
 solana-devtools-tx = { path = "transaction" }
-solana-mock-runtime = { path = "mock_runtime" }
+solana-devtools-simulator = { path = "simulator" }
 solana-devtools-anchor-utils = { path = "anchor-utils" }

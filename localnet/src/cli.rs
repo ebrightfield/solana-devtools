@@ -42,7 +42,8 @@ pub struct SolanaLocalnetCli {
 }
 
 impl SolanaLocalnetCli {
-    pub fn with_config(cfg: LocalnetConfiguration) -> Result<()> {
+    pub fn with_config(cfg: impl Into<LocalnetConfiguration>) -> Result<()> {
+        let cfg: LocalnetConfiguration = cfg.into();
         match Self::parse().command {
             Subcommand::BuildJson {
                 output_dir,
@@ -59,15 +60,12 @@ impl SolanaLocalnetCli {
                 let child_process = if let Some(json_outdir) = build_json {
                     let json_outdir = json_outdir.as_deref();
                     cfg.write_accounts_json(json_outdir, overwrite_existing)?;
-                    cfg
-                        .start_test_validator(flags, json_outdir)
+                    cfg.start_test_validator(flags, json_outdir)
                         .expect("failed to spawn test validator")
                 } else {
-                    cfg
-                        .start_test_validator(flags, None)
+                    cfg.start_test_validator(flags, None)
                         .expect("failed to spawn test validator")
                 };
-
 
                 let output = child_process
                     .wait_with_output()
