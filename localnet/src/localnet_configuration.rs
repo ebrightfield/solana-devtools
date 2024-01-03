@@ -18,8 +18,10 @@ use std::{
 /// Beginning of JS file, to construct `anchor.web3.PublicKey` instances.
 const JS_ANCHOR_IMPORT: &str = "import * as anchor from \"@project-serum/anchor\";\n";
 
-/// Generates a `Test.toml` that sets up a localnet for testing, and provides
-/// other convenient setup automation for complicated state saturation.
+/// Defines a configuration of a set of accounts, programs, etc.
+/// Can be used to generate a [ProgramTest], a [TransactionSimulator],
+/// and a CLI binary that indirectly calls `solana-test-validator`
+/// with the accounts built as JSON and passed as args.
 #[derive(Debug, Clone, Default)]
 pub struct LocalnetConfiguration {
     /// Any accounts to pre-load to the test validator.
