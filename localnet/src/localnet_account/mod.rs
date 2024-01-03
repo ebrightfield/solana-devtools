@@ -5,10 +5,13 @@ use inflector::Inflector;
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
 use solana_devtools_serde::pubkey;
-use solana_program::clock::Epoch;
-use solana_sdk::account::{Account, AccountSharedData, WritableAccount};
-use solana_sdk::bs58;
-use solana_sdk::pubkey::Pubkey;
+use solana_runtime::accounts_index::ZeroLamport;
+use solana_sdk::{
+    account::{Account, AccountSharedData, ReadableAccount, WritableAccount},
+    bs58,
+    clock::Epoch,
+    pubkey::Pubkey,
+};
 use std::fs::{File, OpenOptions};
 
 pub mod idl;
@@ -337,5 +340,29 @@ impl Into<Account> for &LocalnetAccount {
             self.executable,
             self.rent_epoch,
         )
+    }
+}
+
+impl ReadableAccount for LocalnetAccount {
+    fn lamports(&self) -> u64 {
+        self.lamports
+    }
+    fn data(&self) -> &[u8] {
+        &self.data
+    }
+    fn owner(&self) -> &Pubkey {
+        &self.owner
+    }
+    fn executable(&self) -> bool {
+        self.executable
+    }
+    fn rent_epoch(&self) -> Epoch {
+        self.rent_epoch
+    }
+}
+
+impl ZeroLamport for LocalnetAccount {
+    fn is_zero_lamport(&self) -> bool {
+        self.lamports == 0
     }
 }

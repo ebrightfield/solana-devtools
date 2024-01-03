@@ -9,7 +9,7 @@ pub fn configuration() -> LocalnetConfiguration {
     LocalnetConfiguration::with_outdir("./tests/suite-2")
         .accounts(accounts())
         .unwrap()
-        .program(test_program::ID, "../target/deploy/test_program.so")
+        .program_binary_file(test_program::ID, "../target/deploy/test_program.so")
         .unwrap()
 }
 
