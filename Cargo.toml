@@ -52,6 +52,7 @@ log = "0.4"
 tokio = "1"
 anyhow = "1.0.76"
 base64 = "0.21.5"
+ahash = "=0.8.6"
 
 solana-devtools-cli-config = { path = "cli-config" }
 solana-devtools-serde = { path = "serde-str" }
