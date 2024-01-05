@@ -1,10 +1,11 @@
 [package]
 name = "solana-devtools-localnet"
-version = "0.28.3"
+version = "0.28.4"
 edition = "2021"
 
 [features]
-default = ["solana-devtools-simulator"]
+default = ["solana-devtools-simulator", "idl"]
+idl = ["solana-devtools-anchor-utils"]
 
 [dependencies]
 anchor-syn = { workspace = true }
@@ -15,7 +16,6 @@ solana-client = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }
 solana-runtime = { workspace = true }
-flate2 = "1.0.24"
 Inflector = "0.11.4"
 thiserror = "1.0.50"
 serde_json = { workspace = true }
@@ -24,5 +24,6 @@ clap = { workspace = true }
 solana-devtools-serde = { workspace = true }
 bincode = { workspace = true }
 solana-devtools-simulator = { workspace = true, optional = true }
+solana-devtools-anchor-utils = { workspace = true, optional = true }
 base64 = "0.21.5"
 ahash = { workspace = true }

@@ -14,6 +14,7 @@ use solana_sdk::{
 };
 use std::fs::{File, OpenOptions};
 
+#[cfg(feature = "idl")]
 pub mod idl;
 pub mod system_account;
 pub mod token;
@@ -55,6 +56,10 @@ impl LocalnetAccount {
         }
     }
 
+    pub fn new_unnamed<T: AccountSerialize + AccountDeserialize>(address: Pubkey, data: T) -> Self {
+        Self::new(address, address.to_string(), data)
+    }
+
     pub fn new_raw(address: Pubkey, name: String, account_data: Vec<u8>) -> Self {
         Self {
             address,
@@ -64,6 +69,22 @@ impl LocalnetAccount {
             owner: system_program::ID,
             executable: false,
             rent_epoch: 0,
+        }
+    }
+
+    pub fn new_raw_unnamed(address: Pubkey, account_data: Vec<u8>) -> Self {
+        Self::new_raw(address, address.to_string(), account_data)
+    }
+
+    pub fn new_from_readable_account(address: Pubkey, account: impl ReadableAccount) -> Self {
+        Self {
+            address,
+            lamports: account.lamports(),
+            data: account.data().to_vec(),
+            owner: *account.owner(),
+            executable: account.executable(),
+            rent_epoch: account.rent_epoch(),
+            name: address.to_string(),
         }
     }
 
@@ -255,10 +276,7 @@ impl UiAccount {
     pub fn from_localnet_account(act: &LocalnetAccount) -> Self {
         Self {
             lamports: act.lamports,
-            data: UiAccountData::Binary(
-                bs58::encode(&act.data).into_string(),
-                UiAccountEncoding::Base58,
-            ),
+            data: UiAccountData::Binary(STANDARD.encode(&act.data), UiAccountEncoding::Base64),
             owner: act.owner,
             executable: act.executable,
             rent_epoch: act.rent_epoch,

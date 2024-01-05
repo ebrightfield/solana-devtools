@@ -1,17 +1,14 @@
-use anchor_syn::idl::{Idl, IdlInstruction, IdlTypeDefinition};
-use anchor_lang::idl::IdlAccount;
-use std::collections::BTreeMap;
-use std::fs;
-use std::io::Read;
-use std::ops::Deref;
-use std::path::Path;
-use anchor_lang::AnchorDeserialize;
-use anyhow::anyhow;
-use flate2::read::ZlibDecoder;
-use serde::{Deserialize, Serialize};
-use solana_sdk::account::Account;
 use crate::deserialize::discriminator;
 use crate::deserialize::discriminator::Discriminator;
+use crate::idl_sdk::account::deserialize_idl_account;
+use anchor_syn::idl::{Idl, IdlInstruction, IdlTypeDefinition};
+use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
+use solana_sdk::account::Account;
+use std::collections::BTreeMap;
+use std::fs;
+use std::ops::Deref;
+use std::path::Path;
 
 /// IDL Definitions indexed by discriminator
 ///
@@ -45,7 +42,12 @@ impl From<&Idl> for IdlDefinitions {
             types: idl
                 .types
                 .iter()
-                .map(|ty_def| (discriminator::account_discriminator(&ty_def.name), ty_def.clone()))
+                .map(|ty_def| {
+                    (
+                        discriminator::account_discriminator(&ty_def.name),
+                        ty_def.clone(),
+                    )
+                })
                 .collect(),
             accounts: idl
                 .accounts
@@ -66,7 +68,6 @@ pub enum IdlSection {
     Types,
     // TODO Events
 }
-
 
 /// A wrapped [anchor_syn::idl::Idl], with an accompanying
 /// collection of lookup tables mapping every account and instruction
@@ -96,7 +97,10 @@ impl IdlWithDiscriminators {
 
     /// Find any type definition, whether under accounts, types, or events.
     /// Also returns an enum marking the section in which it was found.
-    pub fn find_type_definition_by_name(&self, name: &str) -> Option<(IdlSection, &IdlTypeDefinition)> {
+    pub fn find_type_definition_by_name(
+        &self,
+        name: &str,
+    ) -> Option<(IdlSection, &IdlTypeDefinition)> {
         if let Some(ty_def) = self.get_type_definition_by_name(name) {
             return Some((IdlSection::Types, ty_def));
         }
@@ -112,25 +116,27 @@ impl IdlWithDiscriminators {
     }
 
     pub fn get_type_definition_by_name(&self, name: &str) -> Option<&IdlTypeDefinition> {
-            self.type_definitions.iter().find(|entry| {
-                entry.1.name == name
-            })
-                .map(|entry| entry.1)
+        self.type_definitions
+            .iter()
+            .find(|entry| entry.1.name == name)
+            .map(|entry| entry.1)
     }
 
-    pub fn get_account_definition(&self, discriminator: &Discriminator) -> Option<&IdlTypeDefinition> {
+    pub fn get_account_definition(
+        &self,
+        discriminator: &Discriminator,
+    ) -> Option<&IdlTypeDefinition> {
         self.account_definitions.get(discriminator)
     }
 
     pub fn get_account_definition_by_name(&self, name: &str) -> Option<&IdlTypeDefinition> {
-        self.account_definitions.iter().find(|entry| {
-            entry.1.name == name
-        })
+        self.account_definitions
+            .iter()
+            .find(|entry| entry.1.name == name)
             .map(|entry| entry.1)
     }
 
     // TODO Events
-
 }
 
 impl Deref for IdlWithDiscriminators {
@@ -158,7 +164,12 @@ impl From<Idl> for IdlWithDiscriminators {
             type_definitions: idl
                 .types
                 .iter()
-                .map(|ty_def| (discriminator::account_discriminator(&ty_def.name), ty_def.clone()))
+                .map(|ty_def| {
+                    (
+                        discriminator::account_discriminator(&ty_def.name),
+                        ty_def.clone(),
+                    )
+                })
                 .collect(),
             account_definitions: idl
                 .accounts
@@ -174,21 +185,8 @@ impl TryFrom<Account> for IdlWithDiscriminators {
     type Error = anyhow::Error;
 
     fn try_from(account: Account) -> Result<Self, Self::Error> {
-        if account.data.len() < 8 {
-            return Err(anyhow!("IDL account is the wrong size"));
-        }
-        // Cut off account discriminator.
-        let mut d: &[u8] = &account.data[8..];
-
-        let idl_account: IdlAccount = AnchorDeserialize::deserialize(&mut d)?;
-        let compressed_len: usize = idl_account.data_len.try_into().unwrap();
-        let compressed_bytes = &account.data[44..44 + compressed_len];
-        let mut z = ZlibDecoder::new(compressed_bytes);
-        let mut s = Vec::new();
-        z.read_to_end(&mut s)?;
-        let idl: Idl = serde_json::from_slice(&s[..])
-            .map_err(|_| anyhow!("Could not deserialize decompressed IDL data"))?;
+        let idl = deserialize_idl_account(&account.data)
+            .map_err(|e| anyhow!("failed to deserialize IDL: {e}"))?;
         Ok(Self::from(idl))
-
     }
 }

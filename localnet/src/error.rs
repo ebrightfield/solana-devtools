@@ -31,9 +31,7 @@ pub enum LocalnetConfigurationError {
     #[error("Failed to parse IDL from lib.rs: {0}")]
     IdlParseError(String),
     #[error("Failed to serialize IDL to JSON bytes: {0}")]
-    IdlSerializationError(serde_json::Error),
-    #[error("Failed to compress IDL bytes: {0}")]
-    IdlCompressionError(std::io::Error),
+    IdlSerializationError(String),
     #[error("Failed to create a BPF runtime environment: {0}")]
     EbpfError(String),
 }
