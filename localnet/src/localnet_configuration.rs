@@ -26,9 +26,13 @@ const JS_ANCHOR_IMPORT: &str = "import * as anchor from \"@project-serum/anchor\
 pub struct LocalnetConfiguration {
     /// Any accounts to pre-load to the test validator.
     pub accounts: HashMap<Pubkey, LocalnetAccount>,
+    /// Used to enforce no duplicate account names.
     account_names: HashSet<String>,
-    /// Any programs to pre-load to the test validator.
+    /// Paths to programs are retained only for use with a test validator.
     pub programs: HashMap<Pubkey, String>,
+    /// BPF Upgradeable program data pubkeys. Pubkeys in this and `self.programs`
+    /// are filtered out.
+    program_data_accounts: HashSet<Pubkey>,
     /// CLI args to `solana-test-validator`. The key should not contain dashes.
     /// e.g. "rpc_port", "8899".
     pub test_validator_args: HashMap<String, String>,
@@ -127,7 +131,7 @@ impl LocalnetConfiguration {
     /// in relation to source code in a way that is easier to configure than with relative paths
     /// that might change depending on where you execute your tests.
     pub fn program_binary_data(
-        self,
+        mut self,
         program_binary_name: &str,
         program_id: Pubkey,
         program_data: &[u8],
@@ -156,7 +160,7 @@ impl LocalnetConfiguration {
         data.extend_from_slice(program_data);
         let program_data = LocalnetAccount {
             address: programdata_address,
-            name: format!("{}_data", program_binary_name),
+            name: format!("{}_programdata", program_binary_name),
             lamports: 1,
             data,
             owner: bpf_loader_upgradeable::ID,
@@ -164,6 +168,7 @@ impl LocalnetConfiguration {
             rent_epoch: 0,
         }
         .into();
+        self.program_data_accounts.insert(programdata_address);
         let this = self.accounts([program, program_data])?;
         Ok(this)
     }
@@ -223,6 +228,10 @@ impl LocalnetConfiguration {
         self.test_validator_flags.push(flag);
     }
 
+    pub fn pubkey_is_program(&self, pubkey: &Pubkey) -> bool {
+        self.programs.contains_key(pubkey) || self.program_data_accounts.contains(pubkey)
+    }
+
     /// Write configured accounts out to JSON files in the same format
     /// as the Solana CLI `account` subcommand when using the `--output-format json` arg.
     /// Also the same as the `getAccountInfo` RPC endpoint:
@@ -238,7 +247,7 @@ impl LocalnetConfiguration {
             }
         };
         for (pubkey, act) in &self.accounts {
-            if !self.programs.contains_key(pubkey) {
+            if !self.pubkey_is_program(pubkey) {
                 act.write_to_validator_json_file(&path_prefix, overwrite)?;
             }
         }
@@ -251,7 +260,7 @@ impl LocalnetConfiguration {
         script.extend(
             self.accounts
                 .iter()
-                .filter(|(pubkey, _)| !self.programs.contains_key(pubkey))
+                .filter(|(pubkey, _)| !self.pubkey_is_program(pubkey))
                 .map(|(_, act)| act.js_import())
                 .collect::<Vec<String>>(),
         );
@@ -285,7 +294,7 @@ impl LocalnetConfiguration {
         }
         args.extend(additional_args);
         for (pubkey, account) in &self.accounts {
-            if !self.programs.contains_key(pubkey) {
+            if !self.pubkey_is_program(pubkey) {
                 args.push("--account".to_string());
                 args.push(pubkey.to_string());
                 args.push(account.json_output_path(&path_prefix));

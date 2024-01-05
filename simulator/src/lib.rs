@@ -171,8 +171,24 @@ impl TransactionSimulator {
             signatures: vec![],
             message,
         };
-        self.simulate_transaction_unchecked(tx)
-            .map(|result| result.into())
+        let (bank, result) = self.simulate_transaction_unchecked(tx)?;
+        let accounts = HashMap::from_iter(
+            result
+                .post_simulation_accounts
+                .into_iter()
+                .map(|a| (a.0, a.1)),
+        );
+        let execution_error = match result.result {
+            Ok(_) => None,
+            Err(e) => Some(e),
+        };
+        Ok(ProcessedMessage {
+            accounts,
+            compute_units: result.units_consumed,
+            logs: result.logs,
+            execution_error,
+            slot: bank.slot(),
+        })
     }
 
     /// Simulate the execution of a transaction message, bypassing signature verification,
@@ -201,10 +217,11 @@ impl TransactionSimulator {
     pub fn simulate_transaction_unchecked(
         &self,
         transaction: VersionedTransaction,
-    ) -> TransactionResult<TransactionSimulationResult> {
-        let bank = &*self.working_bank();
-        let sanitized_transaction = try_sanitize_unsigned_transaction(transaction, bank)?;
-        Ok(bank.simulate_transaction_unchecked(sanitized_transaction))
+    ) -> TransactionResult<(Arc<Bank>, TransactionSimulationResult)> {
+        let bank = self.working_bank();
+        let sanitized_transaction = try_sanitize_unsigned_transaction(transaction, &*bank)?;
+        let result = bank.simulate_transaction_unchecked(sanitized_transaction);
+        Ok((bank, result))
     }
 }
 
@@ -217,6 +234,7 @@ pub struct ProcessedMessage {
     /// If the transaction successfully loads but fails during execution,
     /// this will be a non-`None` value.
     pub execution_error: Option<TransactionError>,
+    pub slot: u64,
 }
 
 impl ProcessedMessage {
@@ -259,27 +277,6 @@ impl ProcessedMessage {
             let mut data = act.data();
             T::try_deserialize(&mut data)
         })
-    }
-}
-
-impl From<TransactionSimulationResult> for ProcessedMessage {
-    fn from(value: TransactionSimulationResult) -> Self {
-        let accounts = HashMap::from_iter(
-            value
-                .post_simulation_accounts
-                .into_iter()
-                .map(|a| (a.0, a.1)),
-        );
-        let execution_error = match value.result {
-            Ok(_) => None,
-            Err(e) => Some(e),
-        };
-        ProcessedMessage {
-            accounts,
-            compute_units: value.units_consumed,
-            logs: value.logs,
-            execution_error,
-        }
     }
 }
 
