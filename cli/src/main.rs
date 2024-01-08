@@ -1,12 +1,13 @@
-
 use anchor_spl::associated_token::get_associated_token_address;
-use solana_devtools_anchor_utils::deserialize::AnchorDeserializer;
 use anyhow::{anyhow, Result};
 use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
+use solana_devtools_anchor_utils::deserialize::AnchorDeserializer;
 use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
+use solana_devtools_tx::decompile_instructions::lookup_addresses;
+use solana_devtools_tx::inner_instructions::HistoricalTransaction;
 use solana_sdk::bs58;
 use solana_sdk::hash::Hasher;
 use solana_sdk::message::{v0, VersionedMessage};
@@ -19,8 +20,6 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
-use solana_devtools_tx::decompile_instructions::lookup_addresses;
-use solana_devtools_tx::inner_instructions::HistoricalTransaction;
 
 /// CLI for an improved Solana DX
 #[derive(Debug, Parser)]
@@ -43,6 +42,9 @@ impl Opt {
         let url = self.url.resolve(None)?;
         let commitment = self.commitment.resolve(None)?;
         match self.cmd {
+            Subcommand::Address => {
+                println!("{}", main_signer.pubkey());
+            }
             Subcommand::Ata { mint, owner } => {
                 let owner = if let Some(path) = owner {
                     pubkey_from_path(&matches, &path, "keypair", &mut None)
@@ -92,14 +94,16 @@ impl Opt {
             }
             Subcommand::GetTransaction { txid, outfile } => {
                 let client = RpcClient::new_with_commitment(url, commitment);
-                let tx = client.get_transaction_with_config(
-                    &Signature::from_str(&txid)?,
-                    RpcTransactionConfig {
-                        commitment: Some(commitment),
-                        max_supported_transaction_version: Some(0),
-                        ..Default::default()
-                    },
-                ).await?;
+                let tx = client
+                    .get_transaction_with_config(
+                        &Signature::from_str(&txid)?,
+                        RpcTransactionConfig {
+                            commitment: Some(commitment),
+                            max_supported_transaction_version: Some(0),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
                 let json = serde_json::to_string_pretty(&tx)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -197,15 +201,9 @@ impl Opt {
                     .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?;
                 let message: v0::Message = bincode::deserialize(&message)?;
                 let message = VersionedMessage::V0(message);
-                let loaded_addresses = lookup_addresses(
-                    &client,
-                    &message,
-                ).await?;
+                let loaded_addresses = lookup_addresses(&client, &message).await?;
 
-                let historical_tx = HistoricalTransaction::new(
-                    message,
-                    Some(loaded_addresses)
-                );
+                let historical_tx = HistoricalTransaction::new(message, Some(loaded_addresses));
 
                 let json = deser.try_deserialize_transaction(historical_tx)?;
                 let json = serde_json::to_string_pretty(&json)?;
@@ -223,9 +221,13 @@ impl Opt {
 
 #[derive(Debug, Parser)]
 enum Subcommand {
+    Address,
     /// Display the owner's associated token address for a given mint. Owner defaults
     /// to the configured signer.
-    Ata { mint: String, owner: Option<String> },
+    Ata {
+        mint: String,
+        owner: Option<String>,
+    },
     // TODO Pubkey subcommand,
     /// Execute a memo transaction.
     Memo {
