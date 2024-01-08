@@ -143,17 +143,21 @@ where
         request: RpcRequest,
         params: Value,
     ) -> solana_client::client_error::Result<Value> {
-        let mut lock = self.service.write().await;
-        match lock.deref_mut().ready().await {
-            Ok(service) => {
-                let fut = service.call((request, params));
-                fut.await
+        let fut = {
+            let mut lock = self.service.write().await;
+            match lock.deref_mut().ready().await {
+                Ok(service) => service.call((request, params)),
+                Err(_) => {
+                    return Err(ClientError::new_with_request(
+                        ClientErrorKind::Custom(
+                            "Failed to poll RPC service for readiness".to_string(),
+                        ),
+                        request,
+                    ))
+                }
             }
-            Err(_) => Err(ClientError::new_with_request(
-                ClientErrorKind::Custom("Failed to poll RPC service for readiness".to_string()),
-                request,
-            )),
-        }
+        };
+        fut.await
     }
 
     fn get_transport_stats(&self) -> RpcTransportStats {
