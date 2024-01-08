@@ -1,23 +1,23 @@
-use serde_json::{json, Value};
-use reqwest::{Client, Error, Response, StatusCode};
-use solana_client::rpc_custom_error;
-use solana_client::rpc_response::RpcSimulateTransactionResult;
-use solana_client::rpc_request::{RpcError, RpcResponseErrorData};
+use crate::json_rpc::stats_updater::TransportStats;
+use crate::service::{RpcSenderRequest, RpcSenderResponse};
 use log::debug;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, RETRY_AFTER};
+use reqwest::{Client, Response, StatusCode};
+use serde::Deserialize;
+use serde_json::{json, Value};
 use solana_client::client_error::ClientError;
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicU64, Ordering};
-use tower::Service;
-use std::pin::Pin;
+use solana_client::rpc_custom_error;
+use solana_client::rpc_request::{RpcError, RpcResponseErrorData};
+use solana_client::rpc_response::RpcSimulateTransactionResult;
+use stats_updater::StatsUpdater;
 use std::future::Future;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 use std::time::Duration;
-use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue, RETRY_AFTER};
 use tokio::time::sleep;
-use serde::Deserialize;
-use crate::service::{RpcSenderRequest, RpcSenderResponse};
-use stats_updater::StatsUpdater;
-use crate::json_rpc::stats_updater::TransportStats;
+use tower::Service;
 
 pub mod stats_updater;
 
@@ -66,9 +66,7 @@ impl HttpClientService {
         let mut default_headers = HeaderMap::new();
         default_headers.append(
             HeaderName::from_static("solana-client"),
-            HeaderValue::from_str(
-                format!("rust/{}", solana_version::Version::default()).as_str(),
-            )
+            HeaderValue::from_str(format!("rust/{}", solana_version::Version::default()).as_str())
                 .unwrap(),
         );
         if let Some(headers) = headers {
@@ -97,7 +95,7 @@ impl Service<RpcSenderRequest> for HttpClientService {
     type Response = Value;
     type Error = ClientError;
 
-    type Future = Pin<Box<(dyn Future<Output =RpcSenderResponse> + Send)>>;
+    type Future = Pin<Box<(dyn Future<Output = RpcSenderResponse> + Send)>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -113,7 +111,8 @@ impl Service<RpcSenderRequest> for HttpClientService {
            "id": request_id,
            "method": format!("{}", request),
            "params": params,
-        }).to_string();
+        })
+        .to_string();
         let client = self.client.clone();
         let url = self.url.clone();
 
@@ -157,7 +156,7 @@ impl Service<RpcSenderRequest> for HttpClientService {
                     }
                     return Err(response.error_for_status().unwrap_err().into());
                 }
-                return to_solana_rpc_result(Ok(response)).await;
+                return to_solana_rpc_result(response).await;
             }
         })
     }
@@ -165,30 +164,37 @@ impl Service<RpcSenderRequest> for HttpClientService {
 
 /// Convert Reqwest responses and errors to the types
 /// required by higher-level Solana client code.
-pub async fn to_solana_rpc_result(resp: Result<Response, Error>) -> RpcSenderResponse {
-    let mut json = resp?.json::<Value>().await?;
+pub async fn to_solana_rpc_result(resp: Response) -> RpcSenderResponse {
+    let mut json = resp.json::<Value>().await?;
     if json["error"].is_object() {
         return match serde_json::from_value::<RpcErrorObject>(json["error"].clone()) {
             Ok(rpc_error_object) => {
                 let data = match rpc_error_object.code {
                     rpc_custom_error::JSON_RPC_SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE => {
-                        match serde_json::from_value::<RpcSimulateTransactionResult>(json["error"]["data"].clone()) {
+                        match serde_json::from_value::<RpcSimulateTransactionResult>(
+                            json["error"]["data"].clone(),
+                        ) {
                             Ok(data) => RpcResponseErrorData::SendTransactionPreflightFailure(data),
                             Err(err) => {
-                                debug!("Failed to deserialize RpcSimulateTransactionResult: {:?}", err);
+                                debug!(
+                                    "Failed to deserialize RpcSimulateTransactionResult: {:?}",
+                                    err
+                                );
                                 RpcResponseErrorData::Empty
                             }
                         }
-                    },
+                    }
                     rpc_custom_error::JSON_RPC_SERVER_ERROR_NODE_UNHEALTHY => {
-                        match serde_json::from_value::<rpc_custom_error::NodeUnhealthyErrorData>(json["error"]["data"].clone()) {
-                            Ok(rpc_custom_error::NodeUnhealthyErrorData {num_slots_behind}) => RpcResponseErrorData::NodeUnhealthy {num_slots_behind},
-                            Err(_err) => {
-                                RpcResponseErrorData::Empty
+                        match serde_json::from_value::<rpc_custom_error::NodeUnhealthyErrorData>(
+                            json["error"]["data"].clone(),
+                        ) {
+                            Ok(rpc_custom_error::NodeUnhealthyErrorData { num_slots_behind }) => {
+                                RpcResponseErrorData::NodeUnhealthy { num_slots_behind }
                             }
+                            Err(_err) => RpcResponseErrorData::Empty,
                         }
-                    },
-                    _ => RpcResponseErrorData::Empty
+                    }
+                    _ => RpcResponseErrorData::Empty,
                 };
 
                 Err(RpcError::RpcResponseError {
@@ -196,14 +202,14 @@ pub async fn to_solana_rpc_result(resp: Result<Response, Error>) -> RpcSenderRes
                     message: rpc_error_object.message,
                     data,
                 }
-                    .into())
+                .into())
             }
             Err(err) => Err(RpcError::RpcRequestError(format!(
                 "Failed to deserialize RPC error response: {} [{}]",
                 serde_json::to_string(&json["error"]).unwrap(),
                 err
             ))
-                .into()),
+            .into()),
         };
     }
     return Ok(json["result"].take());
