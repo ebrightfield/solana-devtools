@@ -1,3 +1,4 @@
+use solana_accounts_db::accounts_index::ZeroLamport;
 use solana_program::{
     bpf_loader_upgradeable,
     bpf_loader_upgradeable::UpgradeableLoaderState,
@@ -7,7 +8,6 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_runtime::{
-    accounts_index::ZeroLamport,
     bank::{Bank, TransactionSimulationResult},
     bank_forks::BankForks,
 };
@@ -20,7 +20,7 @@ use solana_sdk::{
     },
 };
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 mod program_test_private_items;
 use program_test_private_items::setup_bank;
@@ -33,7 +33,7 @@ use program_test_private_items::setup_bank;
 /// For more realistic simulation of transaction processing, including signature verification,
 /// use [solana_program_test].
 pub struct TransactionSimulator {
-    bank_forks: BankForks,
+    bank_forks: Arc<RwLock<BankForks>>,
 }
 
 impl TransactionSimulator {
@@ -51,7 +51,7 @@ impl TransactionSimulator {
     }
 
     pub fn working_bank(&self) -> Arc<Bank> {
-        self.bank_forks.working_bank()
+        self.bank_forks.read().unwrap().working_bank()
     }
 
     pub fn get_account(&self, pubkey: &Pubkey) -> Option<AccountSharedData> {
@@ -289,7 +289,6 @@ pub fn try_sanitize_unsigned_transaction(
         MessageHash::Compute,
         Some(false), // is_simple_vote_tx
         bank,
-        true, // require_static_program_ids
     ) {
         Err(e) => {
             // enforce the proper vec length for transaction.signatures.
@@ -319,7 +318,6 @@ pub fn try_sanitize_unsigned_transaction(
                     MessageHash::Compute,
                     Some(false), // is_simple_vote_tx
                     bank,
-                    true, // require_static_program_ids
                 )
             } else {
                 return Err(e);

@@ -1,7 +1,7 @@
 use crate::deserialize::discriminator;
 use crate::deserialize::discriminator::Discriminator;
 use crate::idl_sdk::account::deserialize_idl_account;
-use anchor_syn::idl::{Idl, IdlInstruction, IdlTypeDefinition};
+use anchor_syn::idl::types::{Idl, IdlInstruction, IdlTypeDefinition};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use solana_sdk::account::Account;

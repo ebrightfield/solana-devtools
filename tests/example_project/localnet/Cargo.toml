@@ -15,18 +15,18 @@ path = "src/bin/suite_2/main.rs"
 solana-devtools-localnet = { path = "../../../localnet" }
 test-program = { path = "../programs/test-program" }
 clap = "3"
-solana-sdk = "1.16"
-solana-client = "1.16"
+solana-sdk = "1.17"
+solana-client = "1.17"
 anyhow = "1.0.66"
-spl-token = "3.5.0"
+spl-token = { version = "4", features = ["no-entrypoint"] }
 serde_json = "1.0.108"
 lazy_static = "1.4.0"
 
 [dev-dependencies]
-solana-sdk = "1.16"
+solana-sdk = "1.17"
 spl-associated-token-account = { version = "2", features = ["no-entrypoint"] }
 solana-devtools-simulator = { path = "../../../simulator" }
 solana-devtools-tx = { path = "../../../transaction" }
-solana-program-test = "1.16"
-anchor-lang = "0.28.0"
+solana-program-test = "1.17"
+anchor-lang = "0.29.0"
 tokio = "1"

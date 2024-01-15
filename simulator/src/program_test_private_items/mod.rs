@@ -1,6 +1,6 @@
 mod syscall_stubs;
 
-use solana_runtime::accounts_index::ZeroLamport;
+use solana_accounts_db::accounts_index::ZeroLamport;
 use solana_sdk::account::ReadableAccount;
 use syscall_stubs::*;
 use {
@@ -20,7 +20,10 @@ use {
         signature::{Keypair, Signer},
     },
     solana_vote_program::vote_state::VoteState,
-    std::{sync::Arc, time::Duration},
+    std::{
+        sync::{Arc, RwLock},
+        time::Duration,
+    },
 };
 pub use {
     solana_banks_client::{BanksClient, BanksClientError},
@@ -34,7 +37,9 @@ pub use {
 /// are due to the fact that we cannot directly use many private fields on a [ProgramTest].
 /// Specifically, no feature deactivation, no runtime config, and no user built-ins.
 /// User provided programs must be BPF programs added directly as account data.
-pub fn setup_bank<'a, T>(accounts: impl IntoIterator<Item = (&'a Pubkey, &'a T)>) -> BankForks
+pub fn setup_bank<'a, T>(
+    accounts: impl IntoIterator<Item = (&'a Pubkey, &'a T)>,
+) -> Arc<RwLock<BankForks>>
 where
     T: ReadableAccount + Sync + ZeroLamport + 'a,
 {
@@ -98,9 +103,9 @@ where
     let bank = {
         let bank = Arc::new(bank);
         bank.fill_bank_with_ticks_for_tests();
-        let bank = Bank::new_from_parent(&bank, bank.collector_id(), bank.slot() + 1);
+        let bank = Bank::new_from_parent(bank.clone(), bank.collector_id(), bank.slot() + 1);
         debug!("Bank slot: {}", bank.slot());
         bank
     };
-    BankForks::new(bank)
+    BankForks::new_rw_arc(bank)
 }

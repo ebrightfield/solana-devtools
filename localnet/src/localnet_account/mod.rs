@@ -3,9 +3,9 @@ use anchor_lang::{system_program, AccountDeserialize, AccountSerialize};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use inflector::Inflector;
 use serde::{Deserialize, Serialize};
+use solana_accounts_db::accounts_index::ZeroLamport;
 use solana_client::rpc_client::RpcClient;
 use solana_devtools_serde::pubkey;
-use solana_runtime::accounts_index::ZeroLamport;
 use solana_sdk::{
     account::{Account, AccountSharedData, ReadableAccount, WritableAccount},
     bs58,

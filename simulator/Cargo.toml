@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-simulator"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 
 [features]
@@ -9,6 +9,7 @@ anchor = ["anchor-lang"]
 
 [dependencies]
 solana-sdk = { workspace = true }
+solana-accounts-db = { workspace = true }
 solana-program = { workspace = true }
 solana-program-runtime = { workspace = true }
 solana-program-test = { workspace = true }

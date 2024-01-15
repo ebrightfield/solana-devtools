@@ -17,11 +17,14 @@ impl LocalIdlAccount {
         program_id: Pubkey,
         authority: Option<Pubkey>,
     ) -> Result<Self> {
-        let idl = anchor_syn::idl::file::parse(lib_rs, version.to_string(), false, false, false)
-            .map_err(|e| LocalnetConfigurationError::IdlParseError(format!("{e}")))?
-            .ok_or(LocalnetConfigurationError::IdlParseError(
-                "no idl returned from parse".to_string(),
-            ))?;
+        let idl = solana_devtools_anchor_utils::idl_sdk::parse(
+            lib_rs,
+            version.to_string(),
+            false,
+            false,
+            false,
+        )
+        .map_err(|e| LocalnetConfigurationError::IdlParseError(format!("{e}")))?;
         let data = serialize_idl_account(&idl, authority)
             .map_err(|e| LocalnetConfigurationError::IdlSerializationError(format!("{e}")))?;
         Ok(Self { data, program_id })

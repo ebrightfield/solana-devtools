@@ -1,5 +1,5 @@
-pub use anchor_syn::idl::file::parse;
-use anchor_syn::idl::Idl;
+pub use anchor_syn::idl::parse::file::parse;
+use anchor_syn::idl::types::Idl;
 use anyhow::anyhow;
 use std::collections::HashMap;
 

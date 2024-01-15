@@ -1,6 +1,6 @@
 use crate::idl_sdk::AnchorIdlSdkError;
 use anchor_lang::{idl::IdlAccount, AccountDeserialize, AccountSerialize};
-use anchor_syn::idl::Idl;
+use anchor_syn::idl::types::Idl;
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
 use solana_program::pubkey::Pubkey;
 use std::io::{Read, Write};
