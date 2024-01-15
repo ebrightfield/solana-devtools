@@ -1,7 +1,7 @@
 use crate::idl_sdk::account::serialize_and_compress_idl;
 use anchor_lang::idl::{IdlAccount, IdlInstruction};
 use anchor_lang::{system_program, AnchorSerialize};
-use anchor_syn::idl::Idl;
+use anchor_syn::idl::types::Idl;
 use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::pubkey::Pubkey;
 use std::error::Error;

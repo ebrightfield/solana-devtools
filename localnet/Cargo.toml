@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-localnet"
-version = "0.28.4"
+version = "0.29.0"
 edition = "2021"
 
 [features]
@@ -15,7 +15,7 @@ solana-sdk = { workspace = true }
 solana-client = { workspace = true }
 solana-program = { workspace = true }
 solana-program-test = { workspace = true }
-solana-runtime = { workspace = true }
+solana-accounts-db = { workspace = true }
 Inflector = "0.11.4"
 thiserror = "1.0.50"
 serde_json = { workspace = true }

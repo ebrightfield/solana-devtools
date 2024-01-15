@@ -1,5 +1,5 @@
 use crate::deserialize::IdlWithDiscriminators;
-use anchor_syn::idl::{
+use anchor_syn::idl::types::{
     EnumFields, IdlEnumVariant, IdlField, IdlType, IdlTypeDefinition, IdlTypeDefinitionTy,
 };
 use anyhow::anyhow;
@@ -17,13 +17,17 @@ impl IdlWithDiscriminators {
         data: &mut &[u8],
     ) -> anyhow::Result<Value> {
         match &type_definition.ty {
-            IdlTypeDefinitionTy::Struct { fields } => self.deserialize_named_fields(&fields, &mut &data[..]),
+            IdlTypeDefinitionTy::Struct { fields } => {
+                self.deserialize_named_fields(&fields, &mut &data[..])
+            }
             IdlTypeDefinitionTy::Enum { variants } => {
                 for variant in variants {
                     let IdlEnumVariant { name, fields } = variant;
-                    if let Ok(value) =
-                        self.deserialize_enum_variant(name.as_str(), &fields.clone(), &mut &data[..])
-                    {
+                    if let Ok(value) = self.deserialize_enum_variant(
+                        name.as_str(),
+                        &fields.clone(),
+                        &mut &data[..],
+                    ) {
                         return Ok(value);
                     }
                 }
@@ -31,6 +35,7 @@ impl IdlWithDiscriminators {
                     "Couldn't deserialize using any of the available enum variants"
                 ));
             }
+            IdlTypeDefinitionTy::Alias { value } => self.deserialize_idl_type(value, data),
         }
     }
 

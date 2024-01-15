@@ -1,6 +1,6 @@
 use crate::deserialize::discriminator::partition_discriminator_from_data;
 use crate::deserialize::IdlWithDiscriminators;
-use anchor_syn::idl::IdlInstruction;
+use anchor_syn::idl::types::IdlInstruction;
 use anyhow::anyhow;
 use serde_json::Value;
 

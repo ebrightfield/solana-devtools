@@ -1,4 +1,4 @@
-use anchor_syn::idl::{IdlAccountItem, IdlAccounts};
+use anchor_syn::idl::types::{IdlAccountItem, IdlAccounts};
 use serde::{Deserialize, Serialize};
 use solana_devtools_serde::pubkey;
 use solana_program::instruction::AccountMeta;
