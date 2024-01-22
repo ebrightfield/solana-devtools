@@ -10,7 +10,8 @@ use solana_devtools_tx::decompile_instructions::lookup_addresses;
 use solana_devtools_tx::inner_instructions::HistoricalTransaction;
 use solana_sdk::bs58;
 use solana_sdk::hash::Hasher;
-use solana_sdk::message::{v0, VersionedMessage};
+use solana_sdk::instruction::Instruction;
+use solana_sdk::message::VersionedMessage;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
@@ -190,7 +191,9 @@ impl Opt {
                     let prog_id = Pubkey::from_str(pieces[0])?;
                     let path = pieces[1].to_string();
                     let mut deser = AnchorDeserializer::new();
-                    deser.cache_idl_from_file(prog_id, path)?;
+                    deser
+                        .cache_idl_from_file(prog_id, &path)
+                        .map_err(|e| anyhow!("could not add IDL from filepath {}: {}", path, e))?;
                     deser
                 } else {
                     AnchorDeserializer::new()
@@ -199,13 +202,55 @@ impl Opt {
                 let message = bs58::decode(b58_message)
                     .into_vec()
                     .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?;
-                let message: v0::Message = bincode::deserialize(&message)?;
-                let message = VersionedMessage::V0(message);
+                println!("Deserializing message");
+                let message: VersionedMessage = bincode::deserialize(&message)?;
                 let loaded_addresses = lookup_addresses(&client, &message).await?;
 
                 let historical_tx = HistoricalTransaction::new(message, Some(loaded_addresses));
 
                 let json = deser.try_deserialize_transaction(historical_tx)?;
+                let json = serde_json::to_string_pretty(&json)?;
+                if let Some(outfile) = outfile {
+                    let mut file = File::create(outfile)?;
+                    file.write(json.as_bytes())?;
+                } else {
+                    println!("{}", json);
+                }
+            }
+            Subcommand::DeserializeInstruction {
+                b58_instruction,
+                outfile,
+                idl,
+            } => {
+                let ix = bs58::decode(b58_instruction)
+                    .into_vec()
+                    .map_err(|e| anyhow!("Failed to deserialize base58 instruction: {}", e))?;
+                let mut ix: Instruction = bincode::deserialize(&ix)?;
+
+                let deser = if let Some(path) = idl {
+                    let pieces: Vec<&str> = path.as_str().split(":").collect();
+                    if pieces.len() != 2 {
+                        return Err(anyhow!(
+                            "Invalid idl argument, must be <program-id>:<filepath>"
+                        ));
+                    }
+                    let prog_id = Pubkey::from_str(pieces[0])?;
+                    let path = pieces[1].to_string();
+                    let mut deser = AnchorDeserializer::new();
+                    deser.cache_idl_from_file(prog_id, path)?;
+                    deser
+                } else {
+                    let client = RpcClient::new_with_commitment(url, commitment);
+                    // TODO Fetch an IDL from the program ID of the instruction
+                    let mut deser = AnchorDeserializer::new();
+                    deser
+                        .fetch_and_cache_idl_for_program(&client, &ix.program_id)
+                        .await?;
+                    deser
+                };
+
+                let json = deser.try_deserialize_instruction(0, &mut ix, None)?;
+
                 let json = serde_json::to_string_pretty(&json)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
@@ -277,6 +322,17 @@ enum Subcommand {
         idl: Option<String>,
         /// Base58-encoded transaction message.
         b58_message: String,
+        /// Optionally write the data to a file as JSON.
+        #[clap(long)]
+        outfile: Option<String>,
+    },
+    /// Deserialize an instruction encoded in Base58
+    DeserializeInstruction {
+        /// Optionally supply the IDL filepath. Otherwise, the IDL data is fetched on-chain.
+        #[clap(long)]
+        idl: Option<String>,
+        /// Base58-encoded instruction.
+        b58_instruction: String,
         /// Optionally write the data to a file as JSON.
         #[clap(long)]
         outfile: Option<String>,
