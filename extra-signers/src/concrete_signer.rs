@@ -23,18 +23,18 @@ use rpassword::prompt_password;
 use uriparse::URIReference;
 
 // Keypair variant -- interactive, input seed phrase, takes a derivation path
-const PROMPT_URI_PREFIX: &str = "prompt://";
+const PROMPT_URI_PREFIX: &str = "prompt";
 // Keypair variant -- interactive, input JSON string of a keypair file
-const STDIN_URI_PREFIX: &str = "stdin://";
+const STDIN_URI_PREFIX: &str = "stdin";
 
 // Keypair variant -- filepath to a keypair file
-const FILE_URI_PREFIX: &str = "file://";
+const FILE_URI_PREFIX: &str = "file";
 
 // RemoteKeypair variant -- interactive, for communicating with hardware wallets
-const USB_URI_PREFIX: &str = "usb://";
+const USB_URI_PREFIX: &str = "usb";
 
 // Presigner variant -- a pubkey and signature to a presigned transaction
-const PRESIGN_URI_PREFIX: &str = "presigner://";
+const PRESIGN_URI_PREFIX: &str = "presigner";
 
 /// The same suite of input modes that are available with
 /// the `solana-cli` crate, but returns a concrete type instead
