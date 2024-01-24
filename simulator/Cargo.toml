@@ -26,5 +26,3 @@ serde = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
 
-[dev-dependencies]
-anchor-lang = { workspace = true }

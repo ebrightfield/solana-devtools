@@ -12,7 +12,6 @@ use {
     },
     solana_sdk::{
         fee_calculator::{FeeRateGovernor, DEFAULT_TARGET_LAMPORTS_PER_SIGNATURE},
-        feature_set::enable_program_runtime_v2_and_loader_v4,
         genesis_config::ClusterType,
         native_token::sol_to_lamports,
         poh_config::PohConfig,
@@ -84,15 +83,6 @@ where
     genesis_config.poh_config = PohConfig::new_sleep(target_tick_duration);
     debug!("Payer address: {}", mint_keypair.pubkey());
     debug!("Genesis config: {}", genesis_config);
-
-    match genesis_config
-        .accounts
-        .remove(&enable_program_runtime_v2_and_loader_v4::id())
-    {
-        Some(_) => debug!("LoaderV4 deactivated"),
-        None => warn!("LoaderV4 feature not found, ignored"),
-    }
-
 
     let bank = Bank::new_with_runtime_config_for_tests(
         &genesis_config,
