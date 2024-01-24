@@ -11,6 +11,8 @@ const FAKE_ADDRESS_PAD_CHAR: char = '2';
 /// Creates a fake base58 public key via the solana_sdk::pubkey! proc macro, padding
 /// the passed in string literal with 2's up to a 43 char address.
 ///
+/// The last 8 charts are reserved for the identifer leaving 35 chars for the user to define.
+///
 /// The solana runtime seems to use 43 char base58 pubkeys for their system accounts, we will do the same.
 #[proc_macro]
 pub fn fake_pubkey(input: TokenStream) -> TokenStream {
