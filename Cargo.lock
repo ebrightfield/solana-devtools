@@ -4195,6 +4195,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-devtools-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "solana-sdk",
+ "syn 2.0.46",
+]
+
+[[package]]
 name = "solana-devtools-monitoring"
 version = "0.2.0"
 dependencies = [

@@ -5,11 +5,12 @@ members = [
     "cli-config",
     "extra-signers",
     "localnet",
+    "macros",
     "monitoring",
     "rpc",
     "serde-str",
     "simulator",
-    "transaction",
+    "transaction"
 ]
 resolver = "2"
 
@@ -61,4 +62,4 @@ solana-devtools-localnet = { path = "localnet" }
 solana-devtools-tx = { path = "transaction" }
 solana-devtools-simulator = { path = "simulator" }
 solana-devtools-anchor-utils = { path = "anchor-utils" }
-
+solana-devtools-macros = { path = "macros" }
