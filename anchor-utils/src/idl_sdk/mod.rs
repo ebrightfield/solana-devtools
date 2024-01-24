@@ -1,4 +1,4 @@
-pub use anchor_syn::idl::parse::file::parse;
+pub use anchor_syn::idl::parse::file::parse as idl_parse;
 use anchor_syn::idl::types::Idl;
 use anyhow::anyhow;
 use std::collections::HashMap;

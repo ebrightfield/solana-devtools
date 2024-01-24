@@ -1,12 +1,14 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use crate::localnet_account::THOUSAND_SOL;
 use crate::LocalnetAccount;
-use anchor_lang::{AccountDeserialize, AccountSerialize};
+use anchor_lang::{AccountDeserialize, AccountSerialize, Owner};
 use solana_client::rpc_client::RpcClient;
 use solana_program::clock::Epoch;
 use solana_program::pubkey::Pubkey;
+use solana_program::rent::Rent;
 use solana_program::system_program;
 use solana_sdk::account::Account;
+use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
 
 /// Create account data wholecloth, from any type that implements
 /// [anchor_lang::AccountSerialize] and [anchor_lang::AccountDeserialize].
@@ -111,4 +113,38 @@ pub trait ClonedAccount {
             name: self.name(),
         })
     }
+}
+
+pub fn upgradeable_program(
+    program_id: Pubkey,
+    program_data: Vec<u8>,
+) -> bincode::Result<(Account, Account)> {
+    let programdata_address =
+        Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::ID).0;
+    let data = bincode::serialize(&UpgradeableLoaderState::Program {
+        programdata_address,
+    })?;
+    let program = Account::create(
+        Rent::default().minimum_balance(data.len()),
+        data,
+        bpf_loader_upgradeable::ID,
+        false,
+        0,
+    );
+
+    let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+        slot: 0,
+        upgrade_authority_address: None,
+    })
+    .unwrap();
+    data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+    data.extend_from_slice(&program_data);
+    let program_data = Account::create(
+        Rent::default().minimum_balance(data.len()),
+        data,
+        bpf_loader_upgradeable::ID,
+        false,
+        0,
+    );
+    Ok((program, program_data))
 }

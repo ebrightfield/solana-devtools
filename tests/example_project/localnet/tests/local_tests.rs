@@ -1,6 +1,5 @@
 use anchor_lang::{InstructionData, ToAccountMetas};
-use lazy_static::lazy_static;
-use solana_devtools_localnet::{GeneratedAccount, LocalnetConfiguration, TransactionSimulator};
+use solana_devtools_simulator::TransactionSimulator;
 use solana_devtools_tx::TransactionSchema;
 use solana_program_test::ProgramTest;
 use solana_sdk::instruction::{Instruction, InstructionError};
@@ -10,14 +9,29 @@ use solana_sdk::transaction::TransactionError;
 use solana_sdk::{pubkey, system_instruction, sysvar};
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::solana_program::pubkey::Pubkey;
+use std::fs::File;
+use std::io::Read;
 use std::ops::Deref;
-use std::sync::RwLock;
-use test_localnet::suite_one::{configuration, Payer, PAYER_KEYPAIR, TEST_MINT};
+use test_localnet::suite_one::{self, Payer, PAYER_KEYPAIR, TEST_MINT};
 
-// We can load the configuration just once and re-use it for many tests.
-// It is wrapped in a RwLock because cargo tests will execute multi-threaded.
-lazy_static! {
-    static ref CONFIGURATION: RwLock<LocalnetConfiguration> = RwLock::new(configuration());
+/// Configure different test suites with separate [TransactionSimulator] instances.
+pub fn transaction_simulator() -> TransactionSimulator {
+    let simulator = TransactionSimulator::new_with_accounts(suite_one::accounts().iter());
+    let mut test_program = vec![];
+    let mut so_file = File::open("../target/deploy/test_program.so").unwrap();
+    so_file.read_to_end(&mut test_program).unwrap();
+    simulator.add_bpf_upgradeable(test_program::ID, &test_program);
+    simulator
+}
+
+/// We can also use `solana-program-test`.
+pub fn program_test() -> ProgramTest {
+    suite_one::accounts()
+        .into_iter()
+        .fold(ProgramTest::default(), |mut p, (pubkey, act)| {
+            p.add_account(pubkey, act);
+            p
+        })
 }
 
 /// Used below to demonstrate the control over whether to persist changes to account state
@@ -26,7 +40,7 @@ const REUSED_PUBKEY: Pubkey = pubkey!("FgoH9wNBfW18Teg1aN7H3uhUiu8QkPK3jbC3MRJio
 
 #[test]
 fn transaction_simulators_conditionally_save_account_mutations() {
-    let mock_runtime: TransactionSimulator = CONFIGURATION.read().unwrap().deref().into();
+    let mock_runtime: TransactionSimulator = transaction_simulator();
     let msg = [
         system_instruction::create_account(
             &Payer.address(),
@@ -60,7 +74,7 @@ fn transaction_simulators_conditionally_save_account_mutations() {
     ]
     .message(Some(&Payer.address()));
     let result = mock_runtime.process_message(msg.clone()).unwrap();
-    assert!(result.execution_error.is_none());
+    assert!(result.execution_error.is_none(), "{:#?}", result.logs);
     let result = mock_runtime
         .process_message_and_update_accounts(msg.clone())
         .unwrap();
@@ -78,7 +92,7 @@ fn transaction_simulators_conditionally_save_account_mutations() {
 
 #[test]
 fn transaction_simulators_are_independent() {
-    let mock_runtime: TransactionSimulator = CONFIGURATION.read().unwrap().deref().into();
+    let mock_runtime: TransactionSimulator = transaction_simulator();
     let msg = [system_instruction::create_account(
         &Payer.address(),
         &REUSED_PUBKEY,
@@ -95,7 +109,7 @@ fn transaction_simulators_are_independent() {
 
 #[test]
 fn failed_simulations_never_update_account_state() {
-    let mock_runtime: TransactionSimulator = CONFIGURATION.read().unwrap().deref().into();
+    let mock_runtime: TransactionSimulator = transaction_simulator();
     let msg = [
         system_instruction::create_account(
             &Payer.address(),
@@ -124,7 +138,7 @@ fn failed_simulations_never_update_account_state() {
 
 #[tokio::test]
 async fn using_program_test_instance() {
-    let program_test: ProgramTest = CONFIGURATION.read().unwrap().deref().into();
+    let program_test: ProgramTest = program_test();
     let (mut banks_client, _, hash) = program_test.start().await;
 
     let test_mint = Keypair::new();
@@ -171,7 +185,7 @@ async fn using_program_test_instance() {
 
 #[tokio::test]
 async fn same_tx_with_new_program_test_instance() {
-    let program_test: ProgramTest = CONFIGURATION.read().unwrap().deref().into();
+    let program_test: ProgramTest = program_test();
     let (mut banks_client, _, hash) = program_test.start().await;
 
     let test_mint = Keypair::new();

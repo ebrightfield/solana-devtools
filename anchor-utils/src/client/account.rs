@@ -1,4 +1,4 @@
-use anchor_lang::prelude::{AccountDeserialize, AccountSerialize};
+use anchor_lang::prelude::AccountDeserialize;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_client;
@@ -32,7 +32,7 @@ pub fn get_state_blocking<T: AccountDeserialize>(
 
 /// Uses `RpcClient::get_multiple_accounts` to fetch accounts, deserialize them,
 /// and for each account, calls a function, in case data needs to be extracted, etc.
-pub async fn get_anchor_accounts<T: AccountSerialize + AccountDeserialize>(
+pub async fn get_anchor_accounts<T: AccountDeserialize>(
     addresses: &[Pubkey],
     client: &RpcClient,
     sleep_between_requests: Option<Duration>,

@@ -1,7 +1,6 @@
 use anchor_lang::prelude::System;
 use anchor_lang::Id;
 use solana_program::pubkey::Pubkey;
-use std::io::Write;
 
 /// Use this struct as type T for any [GeneratedAccount] or [ClonedAccount]
 /// owned by `SystemProgram` (e.g. typical user accounts).
@@ -23,8 +22,4 @@ impl anchor_lang::AccountDeserialize for SystemAccount {
     }
 }
 
-impl anchor_lang::AccountSerialize for SystemAccount {
-    fn try_serialize<W: Write>(&self, _writer: &mut W) -> anchor_lang::Result<()> {
-        Ok(())
-    }
-}
+impl anchor_lang::AccountSerialize for SystemAccount {}

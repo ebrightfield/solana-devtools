@@ -1,7 +1,7 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use crate::LocalnetAccount;
 use anchor_lang::idl::IdlAccount;
-use solana_devtools_anchor_utils::idl_sdk::serialize_idl_account;
+use solana_devtools_anchor_utils::idl_sdk::{idl_parse, serialize_idl_account};
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
 
@@ -17,14 +17,8 @@ impl LocalIdlAccount {
         program_id: Pubkey,
         authority: Option<Pubkey>,
     ) -> Result<Self> {
-        let idl = solana_devtools_anchor_utils::idl_sdk::parse(
-            lib_rs,
-            version.to_string(),
-            false,
-            false,
-            false,
-        )
-        .map_err(|e| LocalnetConfigurationError::IdlParseError(format!("{e}")))?;
+        let idl = idl_parse(lib_rs, version.to_string(), false, false, false)
+            .map_err(|e| LocalnetConfigurationError::IdlParseError(format!("{e}")))?;
         let data = serialize_idl_account(&idl, authority)
             .map_err(|e| LocalnetConfigurationError::IdlSerializationError(format!("{e}")))?;
         Ok(Self { data, program_id })

@@ -335,12 +335,11 @@ impl Into<TransactionSimulator> for &LocalnetConfiguration {
 
 impl Into<ProgramTest> for &LocalnetConfiguration {
     fn into(self) -> ProgramTest {
-        let mut program_test = ProgramTest::default();
-
-        for (pubkey, act) in &self.accounts {
-            program_test.add_account(*pubkey, act.into());
-        }
-
-        program_test
+        self.accounts
+            .iter()
+            .fold(ProgramTest::default(), |mut p, (pubkey, act)| {
+                p.add_account(*pubkey, act.into());
+                p
+            })
     }
 }
