@@ -72,29 +72,30 @@ fn get_named_base58_str(identifier: String, max_pad_length: usize) -> String {
         }
     }
 
+    println!("{}", result);
+
     panic!("Unable to create 32 byte array from padded identifier");
 }
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
+    use rand::{Rng, thread_rng};
+    use rand::distributions::Alphanumeric;
     use super::*;
 
     #[test]
     fn check_base58_pubkey_validity() {
-        let chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let char_iter = chars.chars();
+        for _ in 0..1000 {
+            let identifier: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(TARGET_KEY_LENGTH - MIN_IDENTIFIER_LENGTH)
+                .map(|x| x as char)
+                .collect();
 
-        // Create an iterator for the Cartesian product of 3 copies of the char_iter and attempt to make them pubkeys
-        char_iter.clone()
-            .cartesian_product(char_iter.clone())
-            .cartesian_product(char_iter)
-            .map(|((c1, c2), c3)| [c1, c2, c3].iter().collect::<String>())
-            .for_each(|identifier| {
-                let maybe_valid_pubkey = get_named_base58_str(identifier, TARGET_KEY_LENGTH - 3);
+            let maybe_valid_pubkey = get_named_base58_str(identifier, MIN_IDENTIFIER_LENGTH);
 
-                Pubkey::from_str(&*maybe_valid_pubkey)
-                    .expect("Invalid base58 pubkey");
-            });
+            Pubkey::from_str(&maybe_valid_pubkey)
+                .expect("Invalid base58 pubkey");
+        }
     }
 }
