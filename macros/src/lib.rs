@@ -72,8 +72,6 @@ fn get_named_base58_str(identifier: String, max_pad_length: usize) -> String {
         }
     }
 
-    println!("{}", result);
-
     panic!("Unable to create 32 byte array from padded identifier");
 }
 
