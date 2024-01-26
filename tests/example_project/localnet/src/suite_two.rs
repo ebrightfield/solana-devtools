@@ -1,10 +1,10 @@
 use solana_cli_output::CliAccount;
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_response::RpcKeyedAccount;
-use solana_devtools_anchor_utils::client::account::get_state_blocking;
-use solana_devtools_anchor_utils::generated_account::{
-    AssociatedTokenAccount, GeneratedAccount, Mint, SystemAccount,
+use solana_devtools_anchor_utils::account_data::{
+    AssociatedTokenAccount, Mint, SystemAccount, ToAnchorAccount,
 };
+use solana_devtools_anchor_utils::client::account::get_state_blocking;
 use solana_sdk::account::Account;
 use solana_sdk::pubkey;
 use solana_sdk::pubkey::Pubkey;

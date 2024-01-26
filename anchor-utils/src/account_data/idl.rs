@@ -1,4 +1,4 @@
-use crate::generated_account::GeneratedAccount;
+use crate::account_data::ToAnchorAccount;
 use crate::idl_sdk::{serialize_idl_account, AnchorIdlSdkError};
 use anchor_lang::idl::IdlAccount;
 use anchor_syn::idl::types::Idl;
@@ -18,7 +18,7 @@ impl OnChainIdl {
     }
 }
 
-impl GeneratedAccount for OnChainIdl {
+impl ToAnchorAccount for OnChainIdl {
     type Error = AnchorIdlSdkError;
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {

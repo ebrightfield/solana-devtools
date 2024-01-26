@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
-use solana_devtools_anchor_utils::generated_account::{
-    GeneratedAccount, Mint, SystemAccount, TokenAccount,
+use solana_devtools_anchor_utils::account_data::{
+    Mint, SystemAccount, ToAnchorAccount, TokenAccount,
 };
 use solana_sdk::{
     account::Account, pubkey, pubkey::Pubkey, signature::Keypair, signature::Signer, system_program,
@@ -26,7 +26,7 @@ impl Payer {
     }
 }
 
-impl GeneratedAccount for Payer {
+impl ToAnchorAccount for Payer {
     type Error = ();
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {
         Ok(vec![])

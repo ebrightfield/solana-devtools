@@ -1,4 +1,4 @@
-use crate::generated_account::{GeneratedAccount, TokenAccount};
+use crate::account_data::{ToAnchorAccount, TokenAccount};
 use anchor_lang::prelude::Error;
 use solana_program::pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
@@ -23,7 +23,7 @@ impl AssociatedTokenAccount {
     }
 }
 
-impl GeneratedAccount for AssociatedTokenAccount {
+impl ToAnchorAccount for AssociatedTokenAccount {
     type Error = Error;
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {
