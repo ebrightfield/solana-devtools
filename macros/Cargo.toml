@@ -1,6 +1,6 @@
 [package]
 name = "solana-devtools-macros"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -11,3 +11,6 @@ syn = { version = "2", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 solana-sdk = { workspace = true }
+
+[dev-dependencies]
+itertools = "0.12.0"
