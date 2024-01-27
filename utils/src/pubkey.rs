@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use solana_sdk::pubkey::{ParsePubkeyError, Pubkey};
+use solana_program::pubkey::{ParsePubkeyError, Pubkey};
 
 use thiserror::Error;
 
