@@ -1,0 +1,11 @@
+[package]
+name = "solana-devtools-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-sdk = { workspace = true }
+thiserror = "1.0.56"
+
+[dev-dependencies]
+rand = { version = "0.8.5", features = [] }

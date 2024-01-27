@@ -4120,7 +4120,6 @@ dependencies = [
  "borsh 0.9.3",
  "flate2",
  "heck 0.3.3",
- "rand 0.8.5",
  "serde",
  "serde_json",
  "solana-account-decoder",
@@ -4201,7 +4200,7 @@ version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "solana-devtools-anchor-utils",
+ "solana-devtools-utils",
  "syn 2.0.46",
 ]
 
@@ -4302,6 +4301,15 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "spl-memo 3.0.1",
+]
+
+[[package]]
+name = "solana-devtools-utils"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "solana-sdk",
+ "thiserror",
 ]
 
 [[package]]

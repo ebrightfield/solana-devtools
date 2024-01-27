@@ -5,7 +5,7 @@ use core::panic;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, LitStr};
-use solana_devtools_anchor_utils::pubkey::{get_named_pubkey, NamedPubkeyError};
+use solana_devtools_utils::{get_named_pubkey, NamedPubkeyError};
 
 /// Creates a fake base58 public key via the solana_sdk::pubkey! proc macro, padding
 /// the passed in string literal with 2's up to a 44 char address.

@@ -11,7 +11,7 @@ members = [
     "serde-str",
     "simulator",
     "transaction"
-]
+, "utils"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -63,3 +63,4 @@ solana-devtools-tx = { path = "transaction" }
 solana-devtools-simulator = { path = "simulator" }
 solana-devtools-anchor-utils = { path = "anchor-utils" }
 solana-devtools-macros = { path = "macros" }
+solana-devtools-utils = { path = "utils" }

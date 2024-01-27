@@ -1,5 +1,6 @@
 use std::str::FromStr;
-use solana_program::pubkey::{ParsePubkeyError, Pubkey};
+use solana_sdk::pubkey::{ParsePubkeyError, Pubkey};
+
 use thiserror::Error;
 
 const TARGET_KEY_LENGTH: usize = 44;
