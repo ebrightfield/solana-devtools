@@ -10,7 +10,4 @@ proc-macro = true
 syn = { version = "2", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
-solana-sdk = { workspace = true }
-
-[dev-dependencies]
-rand = "0.8.5"
+solana-devtools-anchor-utils = { workspace = true }
