@@ -36,7 +36,7 @@ pub fn named_pubkey(input: TokenStream) -> TokenStream {
         Ok(key) => {
             let key_str = key.to_string();
             let expanded = quote! {
-                solana_sdk::pubkey!(#key_str)
+                solana_program::pubkey!(#key_str)
             };
             TokenStream::from(expanded)
         }
