@@ -1,6 +1,7 @@
 use crate::generated_account::{GeneratedAccount, TokenAccount};
 use anchor_lang::prelude::Error;
 use solana_program::pubkey::Pubkey;
+use solana_sdk::account::Account;
 use spl_associated_token_account::get_associated_token_address;
 
 pub struct AssociatedTokenAccount {
@@ -28,6 +29,10 @@ impl GeneratedAccount for AssociatedTokenAccount {
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {
         TokenAccount::new(self.mint, self.owner, self.balance).generate_account_data()
+    }
+
+    fn to_keyed_account(&self) -> Result<(Pubkey, Account), Self::Error> {
+        Ok((self.address(), self.to_account()?))
     }
 
     fn owner(&self) -> Pubkey {
