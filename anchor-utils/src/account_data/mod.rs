@@ -3,7 +3,7 @@ pub mod idl;
 pub mod system_account;
 pub mod token;
 
-use anchor_lang::{error::Error, AccountSerialize, Owner};
+use anchor_lang::{error::Error, AccountDeserialize, AccountSerialize, Owner};
 use solana_program::rent::Rent;
 use solana_sdk::account::Account;
 use solana_sdk::account::WritableAccount;
@@ -13,7 +13,7 @@ pub use associated_token::AssociatedTokenAccount;
 pub use system_account::SystemAccount;
 pub use token::{Mint, TokenAccount};
 
-pub trait GeneratedAccount {
+pub trait ToAnchorAccount {
     type Error;
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error>;
@@ -37,7 +37,7 @@ pub trait GeneratedAccount {
     }
 }
 
-impl<T: AccountSerialize + Owner> GeneratedAccount for T {
+impl<T: AccountSerialize + Owner> ToAnchorAccount for T {
     type Error = Error;
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {
@@ -48,5 +48,23 @@ impl<T: AccountSerialize + Owner> GeneratedAccount for T {
 
     fn owner(&self) -> Pubkey {
         T::owner()
+    }
+}
+
+pub trait FromAnchorAccount: Sized {
+    type Error;
+
+    fn from_account_data(data: &mut &[u8]) -> Result<Self, Self::Error>;
+
+    fn from_account(account: &Account) -> Result<Self, Self::Error> {
+        Self::from_account_data(&mut &account.data[..])
+    }
+}
+
+impl<T: AccountDeserialize> FromAnchorAccount for T {
+    type Error = Error;
+
+    fn from_account_data(data: &mut &[u8]) -> Result<T, Self::Error> {
+        T::try_deserialize(data)
     }
 }

@@ -1,4 +1,4 @@
-use crate::generated_account::GeneratedAccount;
+use crate::account_data::ToAnchorAccount;
 use solana_program::pubkey::Pubkey;
 use solana_program::system_program;
 use solana_sdk::account::{Account, WritableAccount};
@@ -19,7 +19,7 @@ impl SystemAccount {
     }
 }
 
-impl GeneratedAccount for SystemAccount {
+impl ToAnchorAccount for SystemAccount {
     type Error = ();
 
     fn generate_account_data(&self) -> Result<Vec<u8>, Self::Error> {
