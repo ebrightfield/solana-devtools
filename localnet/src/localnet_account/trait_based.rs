@@ -7,7 +7,7 @@ use solana_program::clock::Epoch;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
 use solana_program::system_program;
-use solana_sdk::account::Account;
+use solana_sdk::account::{Account, WritableAccount};
 use solana_sdk::bpf_loader_upgradeable::{self, UpgradeableLoaderState};
 
 /// Create account data wholecloth, from any type that implements
