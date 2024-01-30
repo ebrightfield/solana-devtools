@@ -5,9 +5,10 @@ pub mod token;
 
 use anchor_lang::{error::Error, AccountDeserialize, AccountSerialize, Owner};
 use solana_program::rent::Rent;
-use solana_sdk::account::Account;
-use solana_sdk::account::WritableAccount;
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{
+    account::{Account, AccountSharedData, ReadableAccount, WritableAccount},
+    pubkey::Pubkey,
+};
 
 pub use associated_token::AssociatedTokenAccount;
 pub use system_account::SystemAccount;
@@ -58,6 +59,10 @@ pub trait FromAnchorAccount: Sized {
 
     fn from_account(account: &Account) -> Result<Self, Self::Error> {
         Self::from_account_data(&mut &account.data[..])
+    }
+
+    fn from_account_shared_data(account: &AccountSharedData) -> Result<Self, Self::Error> {
+        Self::from_account_data(&mut account.data())
     }
 }
 
