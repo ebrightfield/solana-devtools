@@ -86,7 +86,8 @@ impl TransactionSimulator {
     }
 
     pub fn add_bpf_upgradeable(&self, program_id: Pubkey, programdata: &[u8]) {
-        let programdata_address = Pubkey::new_unique();
+        let programdata_address =
+            Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::ID).0;
         let lamports = self
             .working_bank()
             .get_minimum_balance_for_rent_exemption(36);
@@ -133,6 +134,10 @@ impl TransactionSimulator {
             let mut data = act.data();
             T::try_deserialize(&mut data)
         })
+    }
+
+    pub fn get_clock(&self) -> Clock {
+        self.working_bank().clock()
     }
 
     pub fn set_clock(&self, clock: Clock) {

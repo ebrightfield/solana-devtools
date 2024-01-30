@@ -3,20 +3,13 @@ name = "test-localnet"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "localnet_suite_1"
-path = "src/bin/suite_1/main.rs"
-
-[[bin]]
-name = "localnet_suite_2"
-path = "src/bin/suite_2/main.rs"
-
 [dependencies]
-solana-devtools-localnet = { path = "../../../localnet" }
+solana-devtools-anchor-utils = { path = "../../../anchor-utils" }
 test-program = { path = "../programs/test-program" }
 clap = "3"
 solana-sdk = "1.17"
 solana-client = "1.17"
+solana-cli-output = "1.17"
 anyhow = "1.0.66"
 spl-token = { version = "4", features = ["no-entrypoint"] }
 serde_json = "1.0.108"

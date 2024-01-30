@@ -1,12 +1,13 @@
+use crate::deserialize::discriminator::partition_discriminator_from_data;
+use crate::deserialize::{AnchorDeserializer, IdlWithDiscriminators};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_account_decoder::{UiAccount, UiAccountEncoding};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::{Account, ReadableAccount};
-use crate::deserialize::discriminator::partition_discriminator_from_data;
-use crate::deserialize::{AnchorDeserializer, IdlWithDiscriminators};
 
+/// A superset of [solana-account-decoder::UiAccount].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeserializedAccount {
     pub ui_account: UiAccount,
@@ -21,10 +22,7 @@ impl IdlWithDiscriminators {
         idl_type_defs.extend_from_slice(&self.accounts);
         let data = account.data();
         let (discriminator, data) = partition_discriminator_from_data(data);
-        let type_def = self
-            .account_definitions
-            .get(&discriminator)
-            .ok_or(anyhow!(
+        let type_def = self.account_definitions.get(&discriminator).ok_or(anyhow!(
             "Could not match account data against any discriminator"
         ))?;
         Ok((
@@ -41,13 +39,7 @@ impl IdlWithDiscriminators {
         account: &Account,
     ) -> anyhow::Result<DeserializedAccount> {
         let (account_type, deserialized) = self.try_deserialize_account(account)?;
-        let ui_account = UiAccount::encode(
-            pubkey,
-            account,
-            UiAccountEncoding::Base64,
-            None,
-            None,
-        );
+        let ui_account = UiAccount::encode(pubkey, account, UiAccountEncoding::Base64, None, None);
         Ok(DeserializedAccount {
             ui_account,
             program_name: self.name.clone(),
@@ -60,7 +52,11 @@ impl IdlWithDiscriminators {
 impl AnchorDeserializer {
     /// Tries to deserialize an account, first trying with any IDL cached from the account's owner,
     /// and failing that, tries to deserialize using all other caches IDLs (order is indeterminate).
-    pub fn try_deserialize_account(&self, pubkey: Pubkey, account: &Account) -> Result<DeserializedAccount> {
+    pub fn try_deserialize_account(
+        &self,
+        pubkey: Pubkey,
+        account: &Account,
+    ) -> Result<DeserializedAccount> {
         if let Some(idl) = self.idl_cache.get(&account.owner) {
             if let Ok(json) = idl.try_deserialize_account_to_json(&pubkey, account) {
                 return Ok(json);
