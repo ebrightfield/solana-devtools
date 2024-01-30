@@ -49,7 +49,18 @@ pub fn extract_instructions_from_versioned_message(
 
 /// Decompile a [Message] back into its instructions.
 pub fn extract_instructions_from_message(message: &Message) -> Vec<Instruction> {
-    let message = SanitizedMessage::try_from(message.clone()).unwrap();
+    let message = match SanitizedMessage::try_from(message.clone()) {
+        Ok(m) => m,
+        Err(e) => {
+            panic!(
+                "Failed to sanitize message due to {e}: {:#?} ({} keys) {:#?}, {:#?}",
+                message.header,
+                message.account_keys.len(),
+                message.instructions,
+                message.account_keys,
+            );
+        }
+    };
     message
         .decompile_instructions()
         .iter()

@@ -17,17 +17,13 @@ impl IdlWithDiscriminators {
         data: &mut &[u8],
     ) -> anyhow::Result<Value> {
         match &type_definition.ty {
-            IdlTypeDefinitionTy::Struct { fields } => {
-                self.deserialize_named_fields(&fields, &mut &data[..])
-            }
+            IdlTypeDefinitionTy::Struct { fields } => self.deserialize_named_fields(&fields, data),
             IdlTypeDefinitionTy::Enum { variants } => {
                 for variant in variants {
                     let IdlEnumVariant { name, fields } = variant;
-                    if let Ok(value) = self.deserialize_enum_variant(
-                        name.as_str(),
-                        &fields.clone(),
-                        &mut &data[..],
-                    ) {
+                    if let Ok(value) =
+                        self.deserialize_enum_variant(name.as_str(), &fields.clone(), data)
+                    {
                         return Ok(value);
                     }
                 }
