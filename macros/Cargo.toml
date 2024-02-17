@@ -12,3 +12,6 @@ quote = "1.0"
 proc-macro2 = "1.0"
 solana-devtools-pubkey = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+solana-sdk = { workspace = true }

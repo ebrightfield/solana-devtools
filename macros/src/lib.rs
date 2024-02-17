@@ -5,11 +5,10 @@ mod const_data;
 
 use const_data::{ConstValue, StructFields};
 
-use core::panic;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use solana_devtools_pubkey::{get_named_pubkey, NamedPubkeyError};
+use solana_devtools_pubkey::get_named_pubkey;
 use syn::{parse_macro_input, DeriveInput, LitStr, Token};
 
 /// Creates a fake base58 public key via the solana_sdk::pubkey! proc macro, padding
@@ -45,12 +44,9 @@ pub fn named_pubkey(input: TokenStream) -> TokenStream {
             };
             TokenStream::from(expanded)
         }
-        Err(NamedPubkeyError::InvalidIdentifier) =>
-            panic!("The identifier provided is longer than 32 chars"),
-        Err(NamedPubkeyError::PubkeyInvalidEncoding) =>
-            panic!("The provided identifier cannot be turned into a base58 address and contains invalid special chars"),
-        Err(NamedPubkeyError::PubkeyWrongSize) =>
-            panic!("Unable to generate a valid sized public key with the provided identifier")
+        Err(e) => syn::Error::new(input_str.span(), e.to_string())
+            .to_compile_error()
+            .into(),
     }
 }
 
@@ -59,12 +55,19 @@ pub fn const_data(attr: TokenStream, item: TokenStream) -> TokenStream {
     let const_values = parse_macro_input!(attr with syn::punctuated::Punctuated::<ConstValue, Token![;]>::parse_terminated);
 
     let input = parse_macro_input!(item as DeriveInput);
-    let StructFields {
-        typename,
-        code_field,
-        name_field,
-        fields,
-    } = const_data::parse_struct_fields(&input);
+    let vis = input.vis.clone();
+    let (
+        input,
+        StructFields {
+            typename,
+            code_field,
+            name_field,
+            fields,
+        },
+    ) = match const_data::parse_struct_fields(input) {
+        Ok(t) => t,
+        Err(e) => return e.to_compile_error().into(),
+    };
 
     let count = const_values.len(); // Get the count of inputs
 
@@ -89,7 +92,7 @@ pub fn const_data(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         const_declarations.push(quote! {
-            pub const #name: #typename = #typename {
+            #vis const #name: #typename = #typename {
                 #(#field_initializers),*
             };
         });
@@ -97,7 +100,9 @@ pub fn const_data(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let consts_count_name = Ident::new("NUM_CONSTS", proc_macro2::Span::call_site());
     let count_const = quote! {
-        pub const #consts_count_name: usize = #count;
+        impl #typename {
+            #vis const #consts_count_name: usize = #count;
+        }
     };
 
     TokenStream::from(quote! {
