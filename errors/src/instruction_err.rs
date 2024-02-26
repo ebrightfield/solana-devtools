@@ -53,6 +53,8 @@ pub trait CheckInstructionError {
         }
     }
 
+    /// If the expected error is found, execute a function that
+    /// maps it to `T`. Otherwise, pass through `self`.
     fn map_expected_instruction_err<T>(
         &self,
         expected: &InstructionError,
@@ -78,7 +80,7 @@ impl<T: Debug> CheckInstructionError for Result<T, InstructionError> {
     }
 }
 
-impl CheckInstructionError for &InstructionError {
+impl CheckInstructionError for InstructionError {
     type NoError = ();
 
     fn get_err(&self) -> Result<&InstructionError, &Self::NoError> {
@@ -86,7 +88,7 @@ impl CheckInstructionError for &InstructionError {
     }
 }
 
-impl CheckInstructionError for &Option<InstructionError> {
+impl CheckInstructionError for Option<InstructionError> {
     type NoError = Option<InstructionError>;
 
     fn get_err(&self) -> Result<&InstructionError, &Self::NoError> {
@@ -94,5 +96,52 @@ impl CheckInstructionError for &Option<InstructionError> {
             None => Err(self),
             Some(e) => Ok(e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub enum TestError {
+        Variant1,
+        Variant2,
+    }
+
+    impl Into<u32> for TestError {
+        fn into(self) -> u32 {
+            match self {
+                TestError::Variant1 => 6000,
+                TestError::Variant2 => 6001,
+            }
+        }
+    }
+
+    #[test]
+    fn transaction_error_checks() {
+        let err = InstructionError::Custom(6000);
+        err.check_instruction_err(err.clone()).unwrap();
+        err.check_instruction_err_code(TestError::Variant1).unwrap();
+        err.check_instruction_err_code(TestError::Variant1).unwrap();
+        err.check_instruction_err_code(TestError::Variant2)
+            .unwrap_err();
+
+        InstructionError::AccountAlreadyInitialized
+            .check_instruction_err(InstructionError::AccountAlreadyInitialized)
+            .unwrap();
+        InstructionError::AccountAlreadyInitialized
+            .check_instruction_err(InstructionError::AccountDataTooSmall)
+            .unwrap_err();
+
+        let r: Result<(), InstructionError> = Ok(());
+        r.check_instruction_err(err.clone()).unwrap_err();
+        let r: Result<(), InstructionError> = Err(err.clone());
+        r.check_instruction_err_code(TestError::Variant1).unwrap();
+
+        let opt: Option<InstructionError> = None;
+        opt.check_instruction_err(err.clone()).unwrap_err();
+        let opt: Option<InstructionError> = Some(err.clone());
+        opt.check_instruction_err_code(TestError::Variant1).unwrap();
+        opt.check_instruction_err(err.clone()).unwrap();
     }
 }

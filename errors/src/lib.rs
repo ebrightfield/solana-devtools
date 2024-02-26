@@ -2,15 +2,17 @@
 pub mod anchor_lang_err;
 #[cfg(feature = "solana-program-test")]
 pub mod banks_client_err;
+#[cfg(feature = "solana-client")]
+pub mod client_err;
 pub mod instruction_err;
 pub mod transaction_err;
 
 #[cfg(feature = "solana-program")]
 use solana_program;
 
-// TODO Check InstructionError ?
 // TODO CheckClientError
-// TODO on_* methods that take an `impl FnOnce(err) -> ()`.
+// TODO Macro for calculating the number of error code variants,
+//     and impl TryFrom<u32>
 
 /// ```rust
 /// use anchor_lang::prelude::error_code;

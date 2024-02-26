@@ -74,7 +74,7 @@ pub trait CheckBanksClientError {
             Err(e) => Err(BanksClientErrorCheckFailure::NoError(e)),
             Ok(e) => match e {
                 BanksClientError::TransactionError(tx_err) => tx_err
-                    .check_instruction_err(instruction_index, error_code)
+                    .check_instruction_err_at_index(instruction_index, error_code)
                     .map(|_| self)
                     .map_err(|_| BanksClientErrorCheckFailure::InstructionErrorCheckFailure(e)),
                 _ => Err(BanksClientErrorCheckFailure::NotInstructionError(
@@ -95,7 +95,7 @@ pub trait CheckBanksClientError {
             Err(e) => Err(BanksClientErrorCheckFailure::NoError(e)),
             Ok(e) => match e {
                 BanksClientError::SimulationError { err: tx_err, .. } => tx_err
-                    .check_instruction_err(instruction_index, error_code)
+                    .check_instruction_err_at_index(instruction_index, error_code)
                     .map(|_| self)
                     .map_err(|_| BanksClientErrorCheckFailure::InstructionErrorCheckFailure(e)),
                 _ => Err(BanksClientErrorCheckFailure::NotInstructionError(

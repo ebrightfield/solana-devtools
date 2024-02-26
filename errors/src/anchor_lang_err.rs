@@ -44,6 +44,8 @@ pub trait CheckAnchorLangError {
         }
     }
 
+    /// Similar to a typical `map` method, but called conditionally
+    /// only if a matching error code is found.
     fn map_anchor_lang_error_code<T>(
         &self,
         error_code: impl Into<u32>,
