@@ -1,9 +1,4 @@
 use crate::instruction_err::CheckInstructionError;
-use solana_client::client_error::{ClientError, ClientErrorKind};
-use solana_client::rpc_request::RpcError::RpcResponseError;
-use solana_client::rpc_request::RpcResponseErrorData::SendTransactionPreflightFailure;
-use solana_client::rpc_response::RpcSimulateTransactionResult;
-use solana_program_test::BanksClientError;
 use solana_sdk::instruction::InstructionError;
 use solana_sdk::transaction::TransactionError;
 use std::fmt::Debug;
@@ -127,37 +122,6 @@ impl CheckTransactionError for TransactionError {
 
     fn get_err(&self) -> Result<&TransactionError, &Self::NoError> {
         Ok(self)
-    }
-}
-
-impl CheckTransactionError for BanksClientError {
-    type NoError = Self;
-
-    fn get_err(&self) -> Result<&TransactionError, &Self::NoError> {
-        match self {
-            BanksClientError::TransactionError(err)
-            | BanksClientError::SimulationError { err, .. } => Ok(err),
-            _ => Err(self),
-        }
-    }
-}
-
-impl CheckTransactionError for ClientError {
-    type NoError = Self;
-
-    fn get_err(&self) -> Result<&TransactionError, &Self::NoError> {
-        match &self.kind {
-            ClientErrorKind::RpcError(RpcResponseError {
-                data:
-                    SendTransactionPreflightFailure(RpcSimulateTransactionResult {
-                        err: Some(tx_err),
-                        ..
-                    }),
-                ..
-            }) => Ok(tx_err),
-            ClientErrorKind::TransactionError(tx_err) => Ok(tx_err),
-            _ => Err(self),
-        }
     }
 }
 

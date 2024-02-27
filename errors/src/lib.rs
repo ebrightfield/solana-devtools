@@ -1,16 +1,16 @@
 #[cfg(feature = "anchor-lang")]
 pub mod anchor_lang_err;
+pub mod instruction_err;
+pub mod transaction_err;
+
 #[cfg(feature = "solana-program-test")]
 pub mod banks_client_err;
 #[cfg(feature = "solana-client")]
 pub mod client_err;
-pub mod instruction_err;
-pub mod transaction_err;
 
 #[cfg(feature = "solana-program")]
 use solana_program;
 
-// TODO CheckClientError
 // TODO Macro for calculating the number of error code variants,
 //     and impl TryFrom<u32>
 
