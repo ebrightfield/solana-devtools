@@ -1,6 +1,5 @@
 //! Directly copied from private items in [solana_program_test].
-pub use tokio;
-pub use {
+use {
     solana_banks_client::{BanksClient, BanksClientError},
     solana_banks_interface::BanksTransactionResultWithMetadata,
     solana_program_runtime::invoke_context::InvokeContext,
