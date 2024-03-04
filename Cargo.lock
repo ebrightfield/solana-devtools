@@ -4111,7 +4111,6 @@ dependencies = [
 name = "solana-devtools-anchor-utils"
 version = "0.3.0"
 dependencies = [
- "ahash 0.8.6",
  "anchor-lang",
  "anchor-syn",
  "anyhow",
@@ -4174,7 +4173,6 @@ name = "solana-devtools-localnet"
 version = "0.29.0"
 dependencies = [
  "Inflector",
- "ahash 0.8.6",
  "anchor-lang",
  "anchor-syn",
  "base64 0.21.5",

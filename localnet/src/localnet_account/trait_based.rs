@@ -1,7 +1,7 @@
 use crate::error::{LocalnetConfigurationError, Result};
 use crate::localnet_account::THOUSAND_SOL;
 use crate::LocalnetAccount;
-use anchor_lang::{AccountDeserialize, AccountSerialize, Owner};
+use anchor_lang::{AccountDeserialize, AccountSerialize};
 use solana_client::rpc_client::RpcClient;
 use solana_program::clock::Epoch;
 use solana_program::pubkey::Pubkey;

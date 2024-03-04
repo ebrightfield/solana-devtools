@@ -28,7 +28,6 @@ spl-associated-token-account = { workspace = true }
 flate2 = "1.0.24"
 base64 = "0.20.0-alpha.1"
 bincode = "2.0.0-rc.2"
-ahash = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
