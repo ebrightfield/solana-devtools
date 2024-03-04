@@ -26,4 +26,3 @@ bincode = { workspace = true }
 solana-devtools-simulator = { workspace = true, optional = true }
 solana-devtools-anchor-utils = { workspace = true, optional = true }
 base64 = "0.21.5"
-ahash = { workspace = true }

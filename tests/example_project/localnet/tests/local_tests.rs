@@ -183,8 +183,10 @@ async fn using_program_test_instance() {
     banks_client.send_transaction(msg).await.unwrap();
 }
 
+/// Execute the same transaction as `using_program_test_instance`,
+/// which succeeds due to the isolation of test state.
 #[tokio::test]
-async fn same_tx_with_new_program_test_instance() {
+async fn account_mutations_isolated() {
     let program_test: ProgramTest = program_test();
     let (mut banks_client, _, hash) = program_test.start().await;
 
