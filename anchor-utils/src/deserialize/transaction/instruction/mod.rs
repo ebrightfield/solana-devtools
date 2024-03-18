@@ -4,7 +4,6 @@ pub mod data;
 use crate::deserialize::AnchorDeserializer;
 pub use account_metas::*;
 use anyhow::Result;
-pub use data::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_devtools_serde::pubkey;
