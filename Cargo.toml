@@ -5,7 +5,9 @@ members = [
     "cli-config",
     "extra-signers",
     "localnet",
+    "macros",
     "monitoring",
+    "pubkey",
     "rpc",
     "serde-str",
     "simulator",
@@ -52,12 +54,20 @@ tokio = "1"
 anyhow = "1.0.76"
 base64 = "0.21.5"
 thiserror = "1.0.56"
+syn = { version = "2", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+rand = "0.8.5"
+futures-util = "0.3.29"
+regex = "1"
 
+solana-devtools-anchor-utils = { path = "anchor-utils" }
 solana-devtools-cli-config = { path = "cli-config" }
 solana-devtools-serde = { path = "serde-str" }
 solana-devtools-signers = { path = "extra-signers" }
 solana-devtools-localnet = { path = "localnet" }
-solana-devtools-tx = { path = "transaction" }
+solana-devtools-macros = { path = "macros" }
 solana-devtools-simulator = { path = "simulator" }
-solana-devtools-anchor-utils = { path = "anchor-utils" }
+solana-devtools-tx = { path = "transaction" }
+solana-devtools-pubkey = { path = "pubkey" }
 
