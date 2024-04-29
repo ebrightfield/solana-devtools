@@ -6,21 +6,6 @@ use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::pubkey::Pubkey;
 use std::error::Error;
 
-/// The recommended way to create an IDL account is through the Anchor CLI.
-/// Create and resize the PDA which will become a program's primary IDL account.
-/// Anchor does not CPI to the system program to create IDL accounts.
-/// This is because IDL accounts are often >10kb, which is the max new data allocation
-/// for a top-level instruction.
-/// Therefore, IDL creation takes place across several top-level instructions,
-/// one to create the account (this function creates that instruction), and one to
-/// instantiate the account as an IDL buffer (see the function [create_buffer]).
-/// The max length is 60kb.
-pub fn idl_init_instructions(owner: Pubkey, program_id: Pubkey, data_len: u64) -> Vec<Instruction> {
-    // TODO create_idl_account
-    // TODO resize_idl_account n times based on data len
-    todo!()
-}
-
 /// Get several `idl_write` instructions to successively write data to an IDL account.
 pub fn idl_write_instructions(
     program_id: Pubkey,

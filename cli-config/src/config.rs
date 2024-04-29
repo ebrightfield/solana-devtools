@@ -39,7 +39,7 @@ impl UrlArg {
         let config = config.unwrap_or(load_default_solana_cli_config()
             .map_err(|e| io::Error::new(
                 io::ErrorKind::Other,
-                format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)))?);
+                format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yml: {}", e)))?);
         return Ok(normalize_to_url_if_moniker(config.json_rpc_url));
     }
 }
@@ -81,7 +81,7 @@ impl CommitmentArg {
                 CommitmentConfig::from_str(&config.commitment)
                     .map_err(|e| io::Error::new(
                         io::ErrorKind::Other,
-                        format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)
+                        format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yml: {}", e)
                     ))
             },
             |commitment| Ok(commitment)
@@ -131,11 +131,11 @@ impl KeypairArg {
         } else {
             let config = config.unwrap_or(load_default_solana_cli_config()
                 .map_err(|e| io::Error::new(io::ErrorKind::Other,
-                    format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yaml: {}", e)))?
+                    format!("could not locate Solana CLI config file at its default location ~/.config/solana/cli/config.yml: {}", e)))?
             );
             ConcreteSigner::from_str(&config.keypair_path)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other,
-                    format!("could not interpret keypair URI {} in ~/.config/solana/cli/config.yaml error: {}",
+                    format!("could not interpret keypair URI {} in ~/.config/solana/cli/config.yml error: {}",
                             config.keypair_path, e)))
         }
     }
