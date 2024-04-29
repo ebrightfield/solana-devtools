@@ -12,5 +12,5 @@ This is a suite of crates to assist with Rust development for Solana and Anchor.
 - `solana-devnet-monitoring` -- Functions for tracking events, similar to Anchor's log subscribe approach, but with a trait based interface.
 - `solana-devtools-signers` -- Useful structs that `impl Signer`.
 - `solana-devtools-rpc` -- RPC client utilities. Add headers to RPC requests, print transaction logs from simulation errors.
-- `serde-pubkey-str` -- (De-)serialize pubkeys to/from strings instead of byte-arrays.
+- `solana-devtools-serde` -- (De-)serialize pubkeys and signatures to/from strings instead of byte-arrays.
 - `solana-devtools-tx` -- A library for constructing and processing transactions in various ways.
