@@ -11,6 +11,7 @@ syn = { version = "2", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 solana-devtools-pubkey = { workspace = true }
+solana-program = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

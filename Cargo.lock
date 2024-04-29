@@ -4199,6 +4199,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "solana-devtools-pubkey",
+ "solana-program",
  "solana-sdk",
  "syn 2.0.46",
  "thiserror",
