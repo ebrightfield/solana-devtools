@@ -8,4 +8,4 @@ solana-sdk = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-rand = { version = "0.8.5" }
+rand = { workspace = true }

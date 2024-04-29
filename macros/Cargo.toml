@@ -7,9 +7,9 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2", features = ["full"] }
-quote = "1.0"
-proc-macro2 = "1.0"
+syn = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
 solana-devtools-pubkey = { workspace = true }
 solana-program = { workspace = true }
 thiserror = { workspace = true }
