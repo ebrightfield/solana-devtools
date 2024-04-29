@@ -1,12 +1,6 @@
 //! Directly copied from private items in [solana_program_test].
 use {
-    solana_banks_client::{BanksClient, BanksClientError},
-    solana_banks_interface::BanksTransactionResultWithMetadata,
-    solana_program_runtime::invoke_context::InvokeContext,
-    solana_sdk::transaction_context::IndexOfAccount,
-};
-use {
-    solana_program_runtime::{ic_msg, stable_log, timings::ExecuteTimings},
+    solana_program_runtime::{ic_msg, invoke_context::InvokeContext, stable_log, timings::ExecuteTimings},
     solana_sdk::{
         account_info::AccountInfo,
         entrypoint::{ProgramResult, SUCCESS},
