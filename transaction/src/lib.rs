@@ -1,5 +1,6 @@
 pub mod decompile_instructions;
 pub mod inner_instructions;
+pub mod mutated_instruction;
 
 use solana_program::message::CompileError;
 /// Define a struct representing a transaction schema.

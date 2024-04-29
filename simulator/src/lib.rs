@@ -25,6 +25,8 @@ use std::sync::{Arc, RwLock};
 mod program_test_private_items;
 use program_test_private_items::setup_bank;
 
+const RENT_EXEMPT_PROGRAM_METADATA_BALANCE: u64 = 114144;
+
 /// Simulate transactions direct from messages, skipping signature verification.
 /// It is therefore not a realistic test scenario, and permits many more
 /// state changes that are not possible on-chain or even with [solana_program_test].
@@ -86,43 +88,15 @@ impl TransactionSimulator {
     }
 
     pub fn add_bpf_upgradeable(&self, program_id: Pubkey, programdata: &[u8]) {
-        let programdata_address =
-            Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::ID).0;
-        let lamports = self
-            .working_bank()
-            .get_minimum_balance_for_rent_exemption(36);
-        let program = Account {
-            lamports,
-            data: bincode::serialize(&UpgradeableLoaderState::Program {
-                programdata_address,
-            })
-            .unwrap(),
-            owner: bpf_loader_upgradeable::ID,
-            executable: true,
-            rent_epoch: 0,
-        }
-        .into();
-        self.update_account(&program_id, &program);
+        let programdata_address = upgradeable_programdata_address(&program_id);
+        let program = upgradeable_program_metadata(programdata_address);
+        self.update_account(&program_id, &program.into());
 
-        let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
-            slot: 0,
-            upgrade_authority_address: None,
-        })
-        .unwrap();
-        data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
-        data.extend_from_slice(programdata);
-        let lamports = self
-            .working_bank()
-            .get_minimum_balance_for_rent_exemption(data.len());
-        let program_data = Account {
-            lamports,
-            data,
-            owner: bpf_loader_upgradeable::ID,
-            executable: true,
-            rent_epoch: 0,
-        }
-        .into();
-        self.update_account(&programdata_address, &program_data);
+        let lamports = self.working_bank().get_minimum_balance_for_rent_exemption(
+            UpgradeableLoaderState::size_of_programdata(programdata.len()),
+        );
+        let program_data = upgradeable_program_data(programdata, lamports);
+        self.update_account(&programdata_address, &program_data.into());
     }
 
     #[cfg(feature = "anchor")]
@@ -329,5 +303,40 @@ pub fn try_sanitize_unsigned_transaction(
             }
         }
         Ok(tx) => Ok(tx),
+    }
+}
+
+#[inline]
+pub fn upgradeable_programdata_address(program_id: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::ID).0
+}
+
+pub fn upgradeable_program_metadata(programdata_address: Pubkey) -> Account {
+    Account {
+        lamports: RENT_EXEMPT_PROGRAM_METADATA_BALANCE,
+        data: bincode::serialize(&UpgradeableLoaderState::Program {
+            programdata_address,
+        })
+        .unwrap(),
+        owner: bpf_loader_upgradeable::ID,
+        executable: true,
+        rent_epoch: 0,
+    }
+}
+
+pub fn upgradeable_program_data(program_data: &[u8], lamports: u64) -> Account {
+    let mut data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+        slot: 0,
+        upgrade_authority_address: None,
+    })
+    .unwrap();
+    data.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+    data.extend_from_slice(program_data);
+    Account {
+        lamports,
+        data,
+        owner: bpf_loader_upgradeable::ID,
+        executable: true,
+        rent_epoch: 0,
     }
 }

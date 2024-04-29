@@ -11,7 +11,7 @@ use solana_sdk::{
 };
 
 pub use associated_token::AssociatedTokenAccount;
-pub use system_account::SystemAccount;
+pub use system_account::{SigningSystemAccount, SystemAccount};
 pub use token::{Mint, TokenAccount};
 
 pub trait ToAnchorAccount {
@@ -35,6 +35,15 @@ pub trait ToAnchorAccount {
         let mut act = self.to_account()?;
         act.set_lamports(lamports);
         Ok(act)
+    }
+
+    fn to_keyed_account_with_lamports(
+        &self,
+        lamports: u64,
+    ) -> Result<(Pubkey, Account), Self::Error> {
+        let (address, mut act) = self.to_keyed_account()?;
+        act.set_lamports(lamports);
+        Ok((address, act))
     }
 }
 
