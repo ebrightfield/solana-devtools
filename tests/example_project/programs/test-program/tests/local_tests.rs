@@ -1,4 +1,7 @@
+mod suite_one;
+
 use anchor_lang::{InstructionData, ToAccountMetas};
+use anchor_spl::token::spl_token;
 use solana_devtools_simulator::TransactionSimulator;
 use solana_devtools_tx::TransactionSchema;
 use solana_program_test::ProgramTest;
@@ -11,14 +14,14 @@ use spl_associated_token_account::get_associated_token_address;
 use spl_token::solana_program::pubkey::Pubkey;
 use std::fs::File;
 use std::io::Read;
-use std::ops::Deref;
-use test_localnet::suite_one::{self, Payer, PAYER_KEYPAIR, TEST_MINT};
+use suite_one::{PAYER, TEST_MINT};
 
 /// Configure different test suites with separate [TransactionSimulator] instances.
+/// You could share instances with `lazy_static` or `OnceCell`.
 pub fn transaction_simulator() -> TransactionSimulator {
-    let simulator = TransactionSimulator::new_with_accounts(suite_one::accounts().iter());
+    let simulator = TransactionSimulator::new_with_accounts(&suite_one::accounts());
     let mut test_program = vec![];
-    let mut so_file = File::open("../target/deploy/test_program.so").unwrap();
+    let mut so_file = File::open("tests/fixtures/test_program.so").unwrap();
     so_file.read_to_end(&mut test_program).unwrap();
     simulator.add_bpf_upgradeable(test_program::ID, &test_program);
     simulator
@@ -43,7 +46,7 @@ fn transaction_simulators_conditionally_save_account_mutations() {
     let mock_runtime: TransactionSimulator = transaction_simulator();
     let msg = [
         system_instruction::create_account(
-            &Payer.address(),
+            &PAYER.address(),
             &REUSED_PUBKEY,
             2_000_000,
             82,
@@ -52,7 +55,7 @@ fn transaction_simulators_conditionally_save_account_mutations() {
         spl_token::instruction::initialize_mint2(
             &spl_token::ID,
             &REUSED_PUBKEY,
-            &Payer.address(),
+            &PAYER.address(),
             None,
             5,
         )
@@ -62,8 +65,8 @@ fn transaction_simulators_conditionally_save_account_mutations() {
             &test_program::instruction::Initialize {}.data(),
             test_program::accounts::Initialize {
                 mint: TEST_MINT,
-                new_account: get_associated_token_address(&Payer.address(), &TEST_MINT),
-                owner: Payer.address(),
+                new_account: get_associated_token_address(&PAYER.address(), &TEST_MINT),
+                owner: PAYER.address(),
                 token_program: spl_token::ID,
                 associated_token_program: spl_associated_token_account::ID,
                 system_program: Pubkey::default(),
@@ -72,7 +75,7 @@ fn transaction_simulators_conditionally_save_account_mutations() {
             .to_account_metas(None),
         ),
     ]
-    .message(Some(&Payer.address()));
+    .message(Some(&PAYER.address()));
     let result = mock_runtime.process_message(msg.clone()).unwrap();
     assert!(result.execution_error.is_none(), "{:#?}", result.logs);
     let result = mock_runtime
@@ -93,14 +96,16 @@ fn transaction_simulators_conditionally_save_account_mutations() {
 #[test]
 fn transaction_simulators_are_independent() {
     let mock_runtime: TransactionSimulator = transaction_simulator();
+    mock_runtime.update_clock(Some(1000), None);
+
     let msg = [system_instruction::create_account(
-        &Payer.address(),
+        &PAYER.address(),
         &REUSED_PUBKEY,
         1_000_000,
         10,
         &Pubkey::default(),
     )]
-    .message(Some(&Payer.address()));
+    .message(Some(&PAYER.address()));
     // This test uses an independent runtime instance,
     // so no matter the order of the cargo test execution, this will not fail.
     let result = mock_runtime.process_message(msg).unwrap();
@@ -112,7 +117,7 @@ fn failed_simulations_never_update_account_state() {
     let mock_runtime: TransactionSimulator = transaction_simulator();
     let msg = [
         system_instruction::create_account(
-            &Payer.address(),
+            &PAYER.address(),
             &REUSED_PUBKEY,
             1_000_000,
             5,
@@ -121,13 +126,13 @@ fn failed_simulations_never_update_account_state() {
         spl_token::instruction::initialize_mint2(
             &spl_token::ID,
             &REUSED_PUBKEY,
-            &Payer.address(),
+            &PAYER.address(),
             None,
             5,
         )
         .unwrap(),
     ]
-    .message(Some(&Payer.address()));
+    .message(Some(&PAYER.address()));
     let result = mock_runtime
         .process_message_and_update_accounts(msg)
         .unwrap();
@@ -145,7 +150,7 @@ async fn using_program_test_instance() {
 
     let msg = [
         system_instruction::create_account(
-            &Payer.address(),
+            &PAYER.address(),
             &test_mint.pubkey(),
             2_000_000,
             82,
@@ -154,7 +159,7 @@ async fn using_program_test_instance() {
         spl_token::instruction::initialize_mint2(
             &spl_token::ID,
             &test_mint.pubkey(),
-            &Payer.address(),
+            &PAYER.address(),
             None,
             5,
         )
@@ -164,8 +169,8 @@ async fn using_program_test_instance() {
             &test_program::instruction::Initialize {}.data(),
             test_program::accounts::Initialize {
                 mint: test_mint.pubkey(),
-                new_account: get_associated_token_address(&Payer.address(), &test_mint.pubkey()),
-                owner: Payer.address(),
+                new_account: get_associated_token_address(&PAYER.address(), &test_mint.pubkey()),
+                owner: PAYER.address(),
                 token_program: spl_token::ID,
                 associated_token_program: spl_associated_token_account::ID,
                 system_program: Pubkey::default(),
@@ -176,15 +181,15 @@ async fn using_program_test_instance() {
     ]
     .transaction(
         hash,
-        Some(&Payer.address()),
-        &vec![PAYER_KEYPAIR.deref(), &test_mint],
+        Some(&PAYER.address()),
+        &vec![&PAYER as &dyn Signer, &test_mint as &dyn Signer],
     );
 
     banks_client.send_transaction(msg).await.unwrap();
 }
 
 #[tokio::test]
-async fn same_tx_with_new_program_test_instance() {
+async fn account_mutations_isolated() {
     let program_test: ProgramTest = program_test();
     let (mut banks_client, _, hash) = program_test.start().await;
 
@@ -192,7 +197,7 @@ async fn same_tx_with_new_program_test_instance() {
 
     let msg = [
         system_instruction::create_account(
-            &Payer.address(),
+            &PAYER.address(),
             &test_mint.pubkey(),
             2_000_000,
             82,
@@ -201,7 +206,7 @@ async fn same_tx_with_new_program_test_instance() {
         spl_token::instruction::initialize_mint2(
             &spl_token::ID,
             &test_mint.pubkey(),
-            &Payer.address(),
+            &PAYER.address(),
             None,
             5,
         )
@@ -211,8 +216,8 @@ async fn same_tx_with_new_program_test_instance() {
             &test_program::instruction::Initialize {}.data(),
             test_program::accounts::Initialize {
                 mint: test_mint.pubkey(),
-                new_account: get_associated_token_address(&Payer.address(), &test_mint.pubkey()),
-                owner: Payer.address(),
+                new_account: get_associated_token_address(&PAYER.address(), &test_mint.pubkey()),
+                owner: PAYER.address(),
                 token_program: spl_token::ID,
                 associated_token_program: spl_associated_token_account::ID,
                 system_program: Pubkey::default(),
@@ -223,8 +228,8 @@ async fn same_tx_with_new_program_test_instance() {
     ]
     .transaction(
         hash,
-        Some(&Payer.address()),
-        &vec![PAYER_KEYPAIR.deref(), &test_mint],
+        Some(&PAYER.address()),
+        &vec![&PAYER as &dyn Signer, &test_mint as &dyn Signer],
     );
 
     banks_client.send_transaction(msg).await.unwrap();

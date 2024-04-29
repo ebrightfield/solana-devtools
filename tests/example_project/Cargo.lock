@@ -3929,6 +3929,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-devtools-macros"
+version = "0.2.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "solana-devtools-pubkey",
+ "solana-program",
+ "syn 2.0.48",
+ "thiserror",
+]
+
+[[package]]
+name = "solana-devtools-pubkey"
+version = "0.1.0"
+dependencies = [
+ "solana-sdk",
+ "thiserror",
+]
+
+[[package]]
 name = "solana-devtools-serde"
 version = "0.2.0"
 dependencies = [
@@ -5209,33 +5229,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-localnet"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anyhow",
- "clap 3.2.25",
- "lazy_static",
- "serde_json",
- "solana-cli-output",
- "solana-client",
- "solana-devtools-anchor-utils",
- "solana-devtools-simulator",
- "solana-devtools-tx",
- "solana-program-test",
- "solana-sdk",
- "spl-associated-token-account",
- "spl-token",
- "test-program",
- "tokio",
-]
-
-[[package]]
 name = "test-program"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "lazy_static",
+ "serde_json",
+ "solana-cli-output",
+ "solana-client",
+ "solana-devtools-anchor-utils",
+ "solana-devtools-macros",
+ "solana-devtools-simulator",
+ "solana-devtools-tx",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account",
+ "tokio",
 ]
 
 [[package]]

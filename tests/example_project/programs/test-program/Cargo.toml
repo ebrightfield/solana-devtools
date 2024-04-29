@@ -19,3 +19,18 @@ default = []
 anchor-lang = "0.29.0"
 anchor-spl = { version = "0.29.0", features = ["associated_token"] }
 
+[dev-dependencies]
+lazy_static = "1.4.0"
+serde_json = "1.0.108"
+solana-program-test = "1.17"
+solana-cli-output = "1.17"
+solana-client = "1.17"
+solana-sdk = "1.17"
+spl-associated-token-account = { version = "2", features = ["no-entrypoint"] }
+tokio = "1"
+
+solana-devtools-anchor-utils = { path = "../../../../anchor-utils" }
+solana-devtools-macros = { path = "../../../../macros" }
+solana-devtools-simulator = { path = "../../../../simulator" }
+solana-devtools-tx = { path = "../../../../transaction" }
+

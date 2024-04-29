@@ -1,0 +1,22 @@
+[package]
+name = "solana-devtools-errors"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["log", "program-log", "anchor-lang", "solana-program-test", "solana-client"]
+log = []
+program-log = ["solana-program"]
+
+[dependencies]
+anchor-lang = { workspace = true, optional = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+solana-program-test = { workspace = true, optional = true }
+solana-program = { workspace = true, optional = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+anchor-lang = { workspace = true }

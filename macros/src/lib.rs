@@ -38,9 +38,9 @@ pub fn named_pubkey(input: TokenStream) -> TokenStream {
     // Generate the fake public key string
     match get_named_pubkey(input_value) {
         Ok(key) => {
-            let key_str = key.to_string();
+            let bytes = key.to_bytes();
             let expanded = quote! {
-                solana_program::pubkey!(#key_str)
+                Pubkey::new_from_array([#(#bytes,)*])
             };
             TokenStream::from(expanded)
         }

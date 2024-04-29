@@ -3,6 +3,7 @@ members = [
     "anchor-utils",
     "cli",
     "cli-config",
+    "errors",
     "extra-signers",
     "localnet",
     "macros",
