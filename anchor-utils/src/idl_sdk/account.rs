@@ -10,10 +10,8 @@ pub fn deserialize_idl_account(data: &[u8]) -> Result<Idl, AnchorIdlSdkError> {
     if data.len() < 8 {
         return Err(AnchorIdlSdkError::DeserializeError);
     }
-    // Cut off account discriminator.
-    let mut d: &[u8] = &data[8..];
 
-    let idl_account: IdlAccount = AccountDeserialize::try_deserialize(&mut d)
+    let idl_account: IdlAccount = AccountDeserialize::try_deserialize(&mut &data[..])
         .map_err(|_| AnchorIdlSdkError::DeserializeError)?;
     let compressed_len: usize = idl_account.data_len.try_into().unwrap();
     let compressed_bytes = &data[44..44 + compressed_len];
