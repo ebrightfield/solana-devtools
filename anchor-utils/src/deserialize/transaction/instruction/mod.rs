@@ -1,4 +1,5 @@
 pub mod account_metas;
+pub mod builtins;
 pub mod data;
 
 use crate::deserialize::AnchorDeserializer;
@@ -35,6 +36,13 @@ impl AnchorDeserializer {
             }
             deserialized_inner_ix
         };
+        if let Some(ix) = DeserializedInstruction::try_compute_budget_instruction(ix, ix_num as u8)
+        {
+            return Ok(ix);
+        }
+        if let Some(ix) = DeserializedInstruction::try_system_instruction(ix, ix_num as u8) {
+            return Ok(ix);
+        }
         // Get program ID, find IDL
         let idl = self.idl_cache.get(&ix.program_id);
         // Try fetching the IDL and deserializing.

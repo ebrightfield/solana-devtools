@@ -1,5 +1,6 @@
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{IntoApp, Parser};
 use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -8,14 +9,15 @@ use solana_devtools_anchor_utils::deserialize::AnchorDeserializer;
 use solana_devtools_cli_config::{CommitmentArg, KeypairArg, UrlArg};
 use solana_devtools_tx::decompile_instructions::lookup_addresses;
 use solana_devtools_tx::inner_instructions::HistoricalTransaction;
-use solana_sdk::bs58;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::hash::Hasher;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::message::VersionedMessage;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
+use solana_sdk::{borsh0_10, bs58};
 use spl_memo::build_memo;
 use std::fs;
 use std::fs::File;
@@ -45,6 +47,17 @@ impl Opt {
         match self.cmd {
             Subcommand::Address => {
                 println!("{}", main_signer.pubkey());
+            }
+            Subcommand::DeserializeComputeIx { hex_data } => {
+                let bytes = hex::decode(&hex_data.as_bytes())?;
+                let ix: ComputeBudgetInstruction = borsh0_10::try_from_slice_unchecked(&bytes)?;
+                println!("{:?}", ix);
+            }
+            Subcommand::CalculatePriorityFee {
+                microlamports,
+                budget,
+            } => {
+                println!("{}", microlamports * budget / 1_000_000);
             }
             Subcommand::Ata { mint, owner } => {
                 let owner = if let Some(path) = owner {
@@ -179,6 +192,8 @@ impl Opt {
                 b58_message,
                 outfile,
                 idl,
+                base64,
+                as_transaction,
             } => {
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let deser = if let Some(path) = idl {
@@ -199,11 +214,22 @@ impl Opt {
                     AnchorDeserializer::new()
                 };
 
-                let message = bs58::decode(b58_message)
-                    .into_vec()
-                    .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?;
+                let message = if base64 {
+                    STANDARD
+                        .decode(b58_message)
+                        .map_err(|e| anyhow!("Failed to deserialize base64 message: {e}"))?
+                } else {
+                    bs58::decode(b58_message)
+                        .into_vec()
+                        .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?
+                };
                 println!("Deserializing message");
-                let message: VersionedMessage = bincode::deserialize(&message)?;
+                let message: VersionedMessage = if as_transaction {
+                    let tx: VersionedTransaction = bincode::deserialize(&message)?;
+                    tx.message
+                } else {
+                    bincode::deserialize(&message)?
+                };
                 let loaded_addresses = lookup_addresses(&client, &message).await?;
 
                 let historical_tx = HistoricalTransaction::new(message, Some(loaded_addresses));
@@ -273,6 +299,13 @@ enum Subcommand {
         mint: String,
         owner: Option<String>,
     },
+    DeserializeComputeIx {
+        hex_data: String,
+    },
+    CalculatePriorityFee {
+        microlamports: u64,
+        budget: u64,
+    },
     // TODO Pubkey subcommand,
     /// Execute a memo transaction.
     Memo {
@@ -325,6 +358,12 @@ enum Subcommand {
         /// Optionally write the data to a file as JSON.
         #[clap(long)]
         outfile: Option<String>,
+        /// Optionally parse the message data as base64
+        #[clap(long)]
+        base64: bool,
+        /// Optionally parse the message data as a serialized transaction, instead of a message
+        #[clap(long)]
+        as_transaction: bool,
     },
     /// Deserialize an instruction encoded in Base58
     DeserializeInstruction {

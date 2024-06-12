@@ -12,6 +12,8 @@ default = []
 
 [dependencies]
 anyhow = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
 serde_json = { workspace = true }
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }

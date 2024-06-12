@@ -59,6 +59,7 @@ syn = { version = "2", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 rand = "0.8.5"
+hex = "0.4"
 futures-util = "0.3.29"
 regex = "1"
 
