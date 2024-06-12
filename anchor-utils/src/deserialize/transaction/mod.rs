@@ -1,5 +1,7 @@
 pub mod instruction;
 
+use std::ops::Deref;
+
 use crate::deserialize::AnchorDeserializer;
 use anyhow::Result;
 pub use instruction::*;
@@ -46,3 +48,11 @@ impl AnchorDeserializer {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeserializedTransaction(Vec<DeserializedInstruction>);
+
+impl Deref for DeserializedTransaction {
+    type Target = [DeserializedInstruction];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

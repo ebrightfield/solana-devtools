@@ -114,11 +114,11 @@ impl Into<bool> for AccountMetaStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeserializedAccountMeta {
-    name: String,
+    pub name: String,
     #[serde(with = "pubkey")]
-    pubkey: Pubkey,
-    is_signer: AccountMetaStatus,
-    is_mut: AccountMetaStatus,
+    pub pubkey: Pubkey,
+    pub is_signer: AccountMetaStatus,
+    pub is_mut: AccountMetaStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
