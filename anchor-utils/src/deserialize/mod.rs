@@ -43,17 +43,22 @@ impl AnchorDeserializer {
         Self { idl_cache }
     }
 
-    pub fn cache_idl(&mut self, program_id: Pubkey, idl: IdlWithDiscriminators) {
+    pub fn cache_idl(
+        &mut self,
+        program_id: Pubkey,
+        idl: IdlWithDiscriminators,
+    ) -> &IdlWithDiscriminators {
         self.idl_cache.insert(program_id, idl);
+        self.idl_cache.get(&program_id).unwrap()
     }
 
     pub fn cache_idl_from_file(
         &mut self,
         program_id: Pubkey,
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<&IdlWithDiscriminators> {
         let idl = IdlWithDiscriminators::from_file(path)?;
         self.cache_idl(program_id, idl);
-        Ok(())
+        Ok(self.idl_cache.get(&program_id).unwrap())
     }
 }
