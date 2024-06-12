@@ -45,10 +45,10 @@ impl AnchorDeserializer {
         for inner_ix in decompiled.inner_instructions.values().flatten() {
             programs.insert(inner_ix.program_id);
         }
-        println!("{:?}", programs);
         for program in programs {
-            if let Err(e) = self.fetch_and_cache_idl_for_program(client, &program).await {
-                eprintln!("Failed to fetch an IDL for program: {program}: {e}");
+            if let Err(_) = self.fetch_and_cache_idl_for_program(client, &program).await {
+                // TODO think how you want to handle debug printing?
+                //eprintln!("Failed to fetch an IDL for program: {program}: {e}");
             }
         }
         Ok(())

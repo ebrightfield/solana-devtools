@@ -19,13 +19,18 @@ impl IdlWithDiscriminators {
         match &type_definition.ty {
             IdlTypeDefinitionTy::Struct { fields } => self.deserialize_named_fields(&fields, data),
             IdlTypeDefinitionTy::Enum { variants } => {
-                for variant in variants {
-                    let IdlEnumVariant { name, fields } = variant;
-                    if let Ok(value) =
-                        self.deserialize_enum_variant(name.as_str(), &fields.clone(), data)
-                    {
-                        return Ok(value);
-                    }
+                // This assumes the variants are presented in order in the IDL, it will break otherwise
+                let variant_idx = data.get(0).ok_or(anyhow!(
+                    "Couldn't deserialize empty data as an enum variant"
+                ))?;
+                let IdlEnumVariant { name, fields } = variants
+                    .get(*variant_idx as usize)
+                    .ok_or(anyhow!("Enum variant index out of bounds"))?;
+                *data = &data[1..];
+                if let Ok(value) =
+                    self.deserialize_enum_variant(name.as_str(), &fields.clone(), data)
+                {
+                    return Ok(value);
                 }
                 return Err(anyhow!(
                     "Couldn't deserialize using any of the available enum variants"
