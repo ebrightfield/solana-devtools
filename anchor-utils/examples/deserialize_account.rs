@@ -1,6 +1,6 @@
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey;
 use solana_devtools_anchor_utils::deserialize::IdlWithDiscriminators;
+use solana_sdk::pubkey;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     let account = client.get_account(&marinade_state).await?;
 
     // Deserialize
-    let value = idl.try_deserialize_account_to_json(&marinade_state, &account)?;
+    let value = idl.try_deserialize_account(&marinade_state, &account)?;
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }

@@ -1,5 +1,6 @@
 use crate::deserialize::discriminator::partition_discriminator_from_data;
 use crate::deserialize::{AnchorDeserializer, IdlWithDiscriminators};
+use anchor_syn::idl::types::IdlTypeDefinition;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,7 +18,12 @@ pub struct DeserializedAccount {
 }
 
 impl IdlWithDiscriminators {
-    pub fn try_deserialize_account(&self, account: &Account) -> Result<(String, Value)> {
+    /// Deserialize an [Account] to a [Value] by inferring its type from the account discriminator,
+    /// and according to this Anchor IDL's type specification.
+    pub fn try_account_to_value<'a>(
+        &'a self,
+        account: &Account,
+    ) -> Result<(&'a IdlTypeDefinition, Value)> {
         let mut idl_type_defs = self.types.clone();
         idl_type_defs.extend_from_slice(&self.accounts);
         let data = account.data();
@@ -26,24 +32,24 @@ impl IdlWithDiscriminators {
             "Could not match account data against any discriminator"
         ))?;
         Ok((
-            (type_def.name.clone()),
+            type_def,
             self.deserialize_struct_or_enum(type_def, &mut &data[..])?,
         ))
     }
 
     /// Deserialize an account and output it as a [Value] that is a superset of
     /// [solana_account_decode::UiAccount]
-    pub fn try_deserialize_account_to_json(
+    pub fn try_deserialize_account(
         &self,
         pubkey: &Pubkey,
         account: &Account,
     ) -> anyhow::Result<DeserializedAccount> {
-        let (account_type, deserialized) = self.try_deserialize_account(account)?;
+        let (account_type, deserialized) = self.try_account_to_value(account)?;
         let ui_account = UiAccount::encode(pubkey, account, UiAccountEncoding::Base64, None, None);
         Ok(DeserializedAccount {
             ui_account,
             program_name: self.name.clone(),
-            account_type,
+            account_type: account_type.name.clone(),
             deserialized,
         })
     }
@@ -58,13 +64,13 @@ impl AnchorDeserializer {
         account: &Account,
     ) -> Result<DeserializedAccount> {
         if let Some(idl) = self.idl_cache.get(&account.owner) {
-            if let Ok(json) = idl.try_deserialize_account_to_json(&pubkey, account) {
+            if let Ok(json) = idl.try_deserialize_account(&pubkey, account) {
                 return Ok(json);
             }
         }
         // Brute force search all cached IDLs, trying to deserialize
         for (_, idl) in &self.idl_cache {
-            if let Ok(json) = idl.try_deserialize_account_to_json(&pubkey, account) {
+            if let Ok(json) = idl.try_deserialize_account(&pubkey, account) {
                 return Ok(json);
             }
         }

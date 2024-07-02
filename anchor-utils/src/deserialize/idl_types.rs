@@ -3,8 +3,20 @@ use anchor_syn::idl::types::{
     EnumFields, IdlEnumVariant, IdlField, IdlType, IdlTypeDefinition, IdlTypeDefinitionTy,
 };
 use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use solana_program::pubkey::Pubkey;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeserializedType {
+    Struct(Value),
+    Enum {
+        enum_variant: String,
+        fields: Option<Value>,
+    },
+    Aliased(Value),
+}
 
 /// Deserialize a data according to a type definition defined
 /// in the IDL. This includes accounts, instructions, and auxiliary defined types.

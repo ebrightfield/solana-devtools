@@ -85,6 +85,6 @@ impl IdlWithDiscriminators {
         pubkey: &Pubkey,
     ) -> Result<DeserializedAccount> {
         let account = client.get_account(pubkey).await?;
-        self.try_deserialize_account_to_json(pubkey, &account)
+        self.try_deserialize_account(pubkey, &account)
     }
 }

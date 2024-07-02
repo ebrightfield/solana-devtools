@@ -10,6 +10,7 @@ pub mod discriminator;
 pub mod idl;
 pub mod idl_types;
 pub mod transaction;
+pub mod value;
 
 pub use idl::IdlWithDiscriminators;
 
