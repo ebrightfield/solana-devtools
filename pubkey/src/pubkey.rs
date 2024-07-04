@@ -1,48 +1,33 @@
-use solana_sdk::pubkey::{ParsePubkeyError, Pubkey};
-use std::str::FromStr;
+use solana_sdk::{bs58, ed25519_instruction::PUBKEY_SERIALIZED_SIZE, pubkey::Pubkey};
 
 use thiserror::Error;
 
-const TARGET_KEY_LENGTH: usize = 44;
-const MIN_PAD_LENGTH: usize = 12;
-const NAMED_ADDRESS_PAD_CHAR: char = '2';
-
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum NamedPubkeyError {
-    #[error("Identifier contains invalid base58 chars that were not converted")]
-    PubkeyInvalidEncoding,
-    #[error("Generated pubkey is of an invalid length")]
-    PubkeyWrongSize,
-    #[error("Identifier is greater than 32 chars long")]
-    InvalidIdentifier,
+    #[error("Pubkey name prefix contains invalid Base58 characters: {0}")]
+    InvalidEncoding(String),
+    #[error("Pubkey name prefix is too long when Base58 encoded, encodes to {0} bytes")]
+    TooLong(usize),
 }
 
-pub fn get_named_pubkey(identifier: String) -> Result<Pubkey, NamedPubkeyError> {
-    let pad_length = TARGET_KEY_LENGTH - identifier.len();
-    if pad_length < MIN_PAD_LENGTH {
-        return Err(NamedPubkeyError::InvalidIdentifier);
-    }
-
-    let mut result = identifier
+pub fn get_named_pubkey(prefix: String) -> Result<Pubkey, NamedPubkeyError> {
+    let sanitized = prefix
         .replace('I', "i")
         .replace('O', "o")
         .replace('l', "L")
         .replace('0', "o");
+    let prefix = bs58::decode(&sanitized)
+        .into_vec()
+        .map_err(|_| NamedPubkeyError::InvalidEncoding(prefix))?;
 
-    result.reserve(pad_length);
-    for _ in 0..pad_length {
-        result.push(NAMED_ADDRESS_PAD_CHAR);
+    let prefix_len = prefix.len();
+    if prefix_len > PUBKEY_SERIALIZED_SIZE {
+        return Err(NamedPubkeyError::TooLong(prefix_len));
     }
+    let mut arr = [0u8; 32];
+    arr[..prefix_len].copy_from_slice(&prefix[..]);
 
-    for pad_trim in 0..=MIN_PAD_LENGTH {
-        let new_result = &result[..(TARGET_KEY_LENGTH - pad_trim)];
-        match Pubkey::from_str(new_result) {
-            Ok(key) => return Ok(key),
-            Err(ParsePubkeyError::WrongSize) => continue,
-            Err(_) => return Err(NamedPubkeyError::PubkeyInvalidEncoding),
-        }
-    }
-    Err(NamedPubkeyError::PubkeyWrongSize)
+    Ok(Pubkey::new_from_array(arr))
 }
 
 #[cfg(test)]
@@ -56,7 +41,7 @@ mod tests {
         for _ in 0..1000 {
             let identifier: String = thread_rng()
                 .sample_iter(&Alphanumeric)
-                .take(TARGET_KEY_LENGTH - MIN_PAD_LENGTH)
+                .take(24)
                 .map(|x| x as char)
                 .collect();
 
