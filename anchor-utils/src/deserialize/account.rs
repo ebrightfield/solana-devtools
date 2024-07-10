@@ -18,15 +18,14 @@ pub struct DeserializedAccount {
 }
 
 impl IdlWithDiscriminators {
-    /// Deserialize an [Account] to a [Value] by inferring its type from the account discriminator,
+    /// Deserialize a slice of bytes to a [Value] by inferring its type from the account discriminator,
     /// and according to this Anchor IDL's type specification.
-    pub fn try_account_to_value<'a>(
+    pub fn try_account_data_to_value<'a>(
         &'a self,
-        account: &Account,
+        data: &[u8],
     ) -> Result<(&'a IdlTypeDefinition, Value)> {
         let mut idl_type_defs = self.types.clone();
         idl_type_defs.extend_from_slice(&self.accounts);
-        let data = account.data();
         let (discriminator, data) = partition_discriminator_from_data(data);
         let type_def = self.account_definitions.get(&discriminator).ok_or(anyhow!(
             "Could not match account data against any discriminator"
@@ -44,7 +43,7 @@ impl IdlWithDiscriminators {
         pubkey: &Pubkey,
         account: &Account,
     ) -> anyhow::Result<DeserializedAccount> {
-        let (account_type, deserialized) = self.try_account_to_value(account)?;
+        let (account_type, deserialized) = self.try_account_data_to_value(account.data())?;
         let ui_account = UiAccount::encode(pubkey, account, UiAccountEncoding::Base64, None, None);
         Ok(DeserializedAccount {
             ui_account,

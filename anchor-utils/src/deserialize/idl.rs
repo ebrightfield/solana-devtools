@@ -1,7 +1,9 @@
 use crate::deserialize::discriminator;
 use crate::deserialize::discriminator::Discriminator;
 use crate::idl_sdk::account::deserialize_idl_account;
-use anchor_syn::idl::types::{Idl, IdlInstruction, IdlTypeDefinition};
+use anchor_syn::idl::types::{
+    Idl, IdlField, IdlInstruction, IdlTypeDefinition, IdlTypeDefinitionTy,
+};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use solana_sdk::account::Account;
@@ -9,6 +11,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
+
+const ENUM_VARIANT_FIELD_NAME: &'static str = "__enum_variant";
 
 /// IDL Definitions indexed by discriminator
 ///
@@ -80,7 +84,8 @@ pub struct IdlWithDiscriminators {
     pub instruction_definitions: BTreeMap<Discriminator, IdlInstruction>,
     pub account_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
     pub type_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
-    // TODO events
+    pub event_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
+    pub enum_variant_field_name: String,
 }
 
 impl IdlWithDiscriminators {
@@ -100,12 +105,12 @@ impl IdlWithDiscriminators {
     pub fn find_type_definition_by_name(
         &self,
         name: &str,
-    ) -> Option<(IdlSection, &IdlTypeDefinition)> {
-        if let Some(ty_def) = self.get_type_definition_by_name(name) {
-            return Some((IdlSection::Types, ty_def));
+    ) -> Option<(IdlSection, &[u8; 8], &IdlTypeDefinition)> {
+        if let Some((discriminator, ty_def)) = self.get_type_definition_by_name(name) {
+            return Some((IdlSection::Types, discriminator, ty_def));
         }
-        if let Some(ty_def) = self.get_account_definition_by_name(name) {
-            return Some((IdlSection::Accounts, ty_def));
+        if let Some((discriminator, ty_def)) = self.get_account_definition_by_name(name) {
+            return Some((IdlSection::Accounts, discriminator, ty_def));
         }
         // TODO Events
         None
@@ -115,11 +120,13 @@ impl IdlWithDiscriminators {
         self.type_definitions.get(discriminator)
     }
 
-    pub fn get_type_definition_by_name(&self, name: &str) -> Option<&IdlTypeDefinition> {
+    pub fn get_type_definition_by_name(
+        &self,
+        name: &str,
+    ) -> Option<(&[u8; 8], &IdlTypeDefinition)> {
         self.type_definitions
             .iter()
             .find(|entry| entry.1.name == name)
-            .map(|entry| entry.1)
     }
 
     pub fn get_account_definition(
@@ -129,13 +136,23 @@ impl IdlWithDiscriminators {
         self.account_definitions.get(discriminator)
     }
 
-    pub fn get_account_definition_by_name(&self, name: &str) -> Option<&IdlTypeDefinition> {
+    pub fn get_account_definition_by_name(
+        &self,
+        name: &str,
+    ) -> Option<(&[u8; 8], &IdlTypeDefinition)> {
         self.account_definitions
             .iter()
             .find(|entry| entry.1.name == name)
-            .map(|entry| entry.1)
     }
 
+    pub fn get_event_definition_by_name(
+        &self,
+        name: &str,
+    ) -> Option<(&[u8; 8], &IdlTypeDefinition)> {
+        self.event_definitions
+            .iter()
+            .find(|entry| entry.1.name == name)
+    }
     // TODO Events
 }
 
@@ -176,7 +193,35 @@ impl From<Idl> for IdlWithDiscriminators {
                 .iter()
                 .map(|act| (discriminator::account_discriminator(&act.name), act.clone()))
                 .collect(),
+            event_definitions: idl
+                .events
+                .as_ref()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|event| {
+                    (
+                        discriminator::account_discriminator(&event.name),
+                        IdlTypeDefinition {
+                            name: event.name.clone(),
+                            docs: None,
+                            generics: None,
+                            ty: IdlTypeDefinitionTy::Struct {
+                                fields: event
+                                    .fields
+                                    .iter()
+                                    .map(|field| IdlField {
+                                        name: field.name.clone(),
+                                        docs: None,
+                                        ty: field.ty.clone(),
+                                    })
+                                    .collect(),
+                            },
+                        },
+                    )
+                })
+                .collect(),
             idl,
+            enum_variant_field_name: ENUM_VARIANT_FIELD_NAME.to_string(),
         }
     }
 }

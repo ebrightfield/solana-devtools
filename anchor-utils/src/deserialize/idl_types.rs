@@ -3,19 +3,29 @@ use anchor_syn::idl::types::{
     EnumFields, IdlEnumVariant, IdlField, IdlType, IdlTypeDefinition, IdlTypeDefinitionTy,
 };
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use solana_program::pubkey::Pubkey;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeserializedType {
-    Struct(Value),
-    Enum {
-        enum_variant: String,
-        fields: Option<Value>,
-    },
-    Aliased(Value),
+pub(crate) fn into_tagged_enum(variant: &str, value: &Value) -> Value {
+    return json!({
+        variant: value
+    });
+}
+
+pub(crate) fn from_tagged_enum(value: &Value) -> anyhow::Result<(&String, &Value)> {
+    let map = value
+        .as_object()
+        .ok_or(anyhow!("value is not a tagged enum -- not a JSON object"))?;
+    let mut fields = map.iter();
+    match fields.next() {
+        Some(variant) => {
+            if fields.next().is_some() {
+                return Err(anyhow!("value is not a tagged enum -- too many fields"));
+            }
+            Ok(variant)
+        }
+        None => Err(anyhow!("value is not a tagged enum -- empty JSON object")),
+    }
 }
 
 /// Deserialize a data according to a type definition defined
@@ -39,13 +49,11 @@ impl IdlWithDiscriminators {
                     .get(*variant_idx as usize)
                     .ok_or(anyhow!("Enum variant index out of bounds"))?;
                 *data = &data[1..];
-                if let Ok(value) =
-                    self.deserialize_enum_variant(name.as_str(), &fields.clone(), data)
-                {
-                    return Ok(value);
+                if let Ok(value) = self.deserialize_enum_variant(&fields.clone(), data) {
+                    return Ok(into_tagged_enum(name, &value));
                 }
                 return Err(anyhow!(
-                    "Couldn't deserialize using any of the available enum variants"
+                    "Couldn't deserialize using the enum variant {name}"
                 ));
             }
             IdlTypeDefinitionTy::Alias { value } => self.deserialize_idl_type(value, data),
@@ -126,7 +134,7 @@ impl IdlWithDiscriminators {
                 return Ok(Value::String(value.to_string()));
             }
             IdlType::Defined(defined_type) => {
-                if let Some((_, ty_def)) = self.find_type_definition_by_name(defined_type) {
+                if let Some((_, _, ty_def)) = self.find_type_definition_by_name(defined_type) {
                     return self.deserialize_struct_or_enum(ty_def, raw_data);
                 }
                 return Err(anyhow!("Couldn't find defined type: {}", &defined_type));
@@ -182,7 +190,6 @@ impl IdlWithDiscriminators {
     /// whether it is a struct variant, a tuple variant, or unit variant.
     pub fn deserialize_enum_variant(
         &self,
-        name: &str,
         fields: &Option<EnumFields>,
         data: &mut &[u8],
     ) -> anyhow::Result<Value> {
@@ -198,18 +205,12 @@ impl IdlWithDiscriminators {
                         .iter()
                         .map(|idl_type| self.deserialize_idl_type(idl_type, data))
                         .collect::<anyhow::Result<Vec<_>>>()?;
-                    Ok(json!({
-                        "name": name,
-                        "fields": Value::Array(deserialized)
-                    }))
+                    Ok(Value::Array(deserialized))
                 }
             }
         } else {
             // A variant with no fields.
-            Ok(json!({
-                "name": name,
-                "fields": Value::Null
-            }))
+            Ok(Value::Null)
         }
     }
 }
