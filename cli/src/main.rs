@@ -2,6 +2,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{IntoApp, Parser};
+use solana_account_decoder::{UiAccount, UiAccountEncoding};
 use solana_clap_v3_utils::keypair::{pubkey_from_path, signer_from_path};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcTransactionConfig;
@@ -179,7 +180,17 @@ impl Opt {
                 let pubkey =
                     Pubkey::from_str(&address).map_err(|_| anyhow!("Invalid pubkey address"))?;
                 let account = client.get_account(&pubkey).await?;
-                let act = deser.try_deserialize_account(pubkey, &account)?;
+
+                let mut act = deser
+                    .try_account_data_to_value(&account)
+                    .map(|act| serde_json::to_value(act).expect("struct serializes"))?;
+
+                let ui_account =
+                    UiAccount::encode(&pubkey, &account, UiAccountEncoding::Base64, None, None);
+                act.as_object_mut()
+                    .unwrap()
+                    .insert("ui_account".to_string(), serde_json::to_value(ui_account)?);
+
                 let json = serde_json::to_string_pretty(&act)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;

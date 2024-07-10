@@ -4,14 +4,12 @@ use anchor_syn::idl::types::IdlTypeDefinition;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use solana_account_decoder::{UiAccount, UiAccountEncoding};
-use solana_program::pubkey::Pubkey;
 use solana_sdk::account::{Account, ReadableAccount};
 
 /// A superset of [solana-account-decoder::UiAccount].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeserializedAccount {
-    pub ui_account: UiAccount,
+    #[serde(flatten)]
     pub program_name: String,
     pub account_type: String,
     pub deserialized: Value,
@@ -20,7 +18,7 @@ pub struct DeserializedAccount {
 impl IdlWithDiscriminators {
     /// Deserialize a slice of bytes to a [Value] by inferring its type from the account discriminator,
     /// and according to this Anchor IDL's type specification.
-    pub fn try_account_data_to_value<'a>(
+    pub fn try_account_data_to_value_inner<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<(&'a IdlTypeDefinition, Value)> {
@@ -36,17 +34,13 @@ impl IdlWithDiscriminators {
         ))
     }
 
-    /// Deserialize an account and output it as a [Value] that is a superset of
-    /// [solana_account_decode::UiAccount]
-    pub fn try_deserialize_account(
+    /// Deserialize account data, returning a [DeserializedAccount] containing a [Value] with parsed fields.
+    pub fn try_account_data_to_value(
         &self,
-        pubkey: &Pubkey,
         account: &Account,
     ) -> anyhow::Result<DeserializedAccount> {
-        let (account_type, deserialized) = self.try_account_data_to_value(account.data())?;
-        let ui_account = UiAccount::encode(pubkey, account, UiAccountEncoding::Base64, None, None);
+        let (account_type, deserialized) = self.try_account_data_to_value_inner(account.data())?;
         Ok(DeserializedAccount {
-            ui_account,
             program_name: self.name.clone(),
             account_type: account_type.name.clone(),
             deserialized,
@@ -57,19 +51,15 @@ impl IdlWithDiscriminators {
 impl AnchorDeserializer {
     /// Tries to deserialize an account, first trying with any IDL cached from the account's owner,
     /// and failing that, tries to deserialize using all other caches IDLs (order is indeterminate).
-    pub fn try_deserialize_account(
-        &self,
-        pubkey: Pubkey,
-        account: &Account,
-    ) -> Result<DeserializedAccount> {
+    pub fn try_account_data_to_value(&self, account: &Account) -> Result<DeserializedAccount> {
         if let Some(idl) = self.idl_cache.get(&account.owner) {
-            if let Ok(json) = idl.try_deserialize_account(&pubkey, account) {
+            if let Ok(json) = idl.try_account_data_to_value(account) {
                 return Ok(json);
             }
         }
         // Brute force search all cached IDLs, trying to deserialize
         for (_, idl) in &self.idl_cache {
-            if let Ok(json) = idl.try_deserialize_account(&pubkey, account) {
+            if let Ok(json) = idl.try_account_data_to_value(account) {
                 return Ok(json);
             }
         }

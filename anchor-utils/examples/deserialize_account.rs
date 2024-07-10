@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     let account = client.get_account(&marinade_state).await?;
 
     // Deserialize
-    let value = idl.try_deserialize_account(&marinade_state, &account)?;
+    let value = idl.try_account_data_to_value(&account)?;
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }

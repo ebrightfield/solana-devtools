@@ -36,7 +36,7 @@ pub fn verify_idl(
     }
     for (pubkey, account) in accounts {
         deser
-            .try_deserialize_account(Pubkey::new_unique(), &account)
+            .try_account_data_to_value(&account)
             .map_err(|e| anyhow!("failed to deserialize account {pubkey}: {e}"))?;
     }
     Ok(())
