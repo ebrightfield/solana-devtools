@@ -14,54 +14,6 @@ use std::path::Path;
 
 const ENUM_VARIANT_FIELD_NAME: &'static str = "__enum_variant";
 
-/// IDL Definitions indexed by discriminator
-///
-/// Discriminators are calculated taking one of the following strings:
-/// - Accounts -- `"account:<AccountStructName>"`
-/// - Instructions -- `"global:<IxName>"` or `"state:<IxName>"`
-///
-/// hashing it, and keeping only the first 8 bytes.
-#[derive(Debug, Clone)]
-pub struct IdlDefinitions {
-    pub instructions: BTreeMap<Discriminator, IdlInstruction>,
-    pub accounts: BTreeMap<Discriminator, IdlTypeDefinition>,
-    pub types: BTreeMap<Discriminator, IdlTypeDefinition>,
-    // TODO events
-}
-
-impl From<&Idl> for IdlDefinitions {
-    fn from(idl: &Idl) -> Self {
-        Self {
-            instructions: idl
-                .instructions
-                .iter()
-                .map(|ix| {
-                    vec![
-                        (discriminator::ix_state_discriminator(&ix.name), ix.clone()),
-                        (discriminator::ix_discriminator(&ix.name), ix.clone()),
-                    ]
-                })
-                .flatten()
-                .collect(),
-            types: idl
-                .types
-                .iter()
-                .map(|ty_def| {
-                    (
-                        discriminator::account_discriminator(&ty_def.name),
-                        ty_def.clone(),
-                    )
-                })
-                .collect(),
-            accounts: idl
-                .accounts
-                .iter()
-                .map(|act| (discriminator::account_discriminator(&act.name), act.clone()))
-                .collect(),
-        }
-    }
-}
-
 /// A marker enum to help with tracking the origin of an [IdlTypeDefinition]
 /// being used in a deserialization attempt when the [IdlTypeDefinition] is obtained by name.
 /// Primarily for debugging purposes.
@@ -153,7 +105,6 @@ impl IdlWithDiscriminators {
             .iter()
             .find(|entry| entry.1.name == name)
     }
-    // TODO Events
 }
 
 impl Deref for IdlWithDiscriminators {

@@ -205,6 +205,7 @@ impl Opt {
                 idl,
                 base64,
                 as_transaction,
+                simulate,
             } => {
                 let client = RpcClient::new_with_commitment(url, commitment);
                 let deser = if let Some(path) = idl {
@@ -234,9 +235,15 @@ impl Opt {
                         .into_vec()
                         .map_err(|e| anyhow!("Failed to deserialize base58 message: {}", e))?
                 };
-                println!("Deserializing message");
+                let mut simulated_already = false;
                 let message: VersionedMessage = if as_transaction {
                     let tx: VersionedTransaction = bincode::deserialize(&message)?;
+                    if simulate {
+                        let result = client.simulate_transaction(&tx).await?;
+                        println!("simulation:");
+                        println!("{:?}", result);
+                        simulated_already = true;
+                    }
                     tx.message
                 } else {
                     bincode::deserialize(&message)?
@@ -245,13 +252,19 @@ impl Opt {
 
                 let historical_tx = HistoricalTransaction::new(message, Some(loaded_addresses));
 
-                let json = deser.try_deserialize_transaction(historical_tx)?;
+                let json = deser.try_deserialize_transaction(historical_tx.clone())?;
                 let json = serde_json::to_string_pretty(&json)?;
                 if let Some(outfile) = outfile {
                     let mut file = File::create(outfile)?;
                     file.write(json.as_bytes())?;
                 } else {
                     println!("{}", json);
+                }
+                if simulate && !simulated_already {
+                    let signers: [&dyn Signer; 0] = [];
+                    let tx = VersionedTransaction::try_new(historical_tx.message, &signers)?;
+                    let result = client.simulate_transaction(&tx).await?;
+                    println!("{:?}", result);
                 }
             }
             Subcommand::DeserializeInstruction {
@@ -375,6 +388,9 @@ enum Subcommand {
         /// Optionally parse the message data as a serialized transaction, instead of a message
         #[clap(long)]
         as_transaction: bool,
+        /// Simulate the transaction after deserializing
+        #[clap(long)]
+        simulate: bool,
     },
     /// Deserialize an instruction encoded in Base58
     DeserializeInstruction {

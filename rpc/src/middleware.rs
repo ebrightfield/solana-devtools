@@ -1,4 +1,4 @@
-use crate::service::{RpcSenderRequest, RpcSenderResponse};
+use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
 use serde_json::Value;
 use solana_client::client_error::ClientError;
 use solana_client::rpc_request::RpcRequest;

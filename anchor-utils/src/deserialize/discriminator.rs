@@ -26,14 +26,12 @@ pub fn ix_state_discriminator(name: &str) -> Discriminator {
         .unwrap()
 }
 
-pub fn partition_discriminator_from_data(data: &[u8]) -> ([u8; 8], Vec<u8>) {
+pub fn partition_discriminator_from_data(data: &[u8]) -> ([u8; 8], &[u8]) {
     let mut first_eight_array = [0u8; 8];
     let len = data.len().min(8);
 
     // Copy up to the first 8 bytes into the array
     first_eight_array[..len].copy_from_slice(&data[..len]);
 
-    let data = data[len..].to_vec();
-
-    (first_eight_array, data)
+    (first_eight_array, &data[len..])
 }

@@ -9,6 +9,7 @@ pub mod client;
 pub mod discriminator;
 pub mod idl;
 pub mod idl_types;
+pub mod serde_adapter;
 pub mod transaction;
 pub mod value;
 

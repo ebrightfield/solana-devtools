@@ -1,4 +1,3 @@
-use crate::deserialize::discriminator::partition_discriminator_from_data;
 use crate::deserialize::{AnchorDeserializer, IdlWithDiscriminators};
 use anchor_syn::idl::types::IdlTypeDefinition;
 use anyhow::{anyhow, Result};
@@ -6,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_sdk::account::{Account, ReadableAccount};
 
+use super::discriminator::partition_discriminator_from_data;
+
 /// A superset of [solana-account-decoder::UiAccount].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeserializedAccount {
-    #[serde(flatten)]
     pub program_name: String,
     pub account_type: String,
     pub deserialized: Value,
@@ -20,11 +20,11 @@ impl IdlWithDiscriminators {
     /// and according to this Anchor IDL's type specification.
     pub fn try_account_data_to_value_inner<'a>(
         &'a self,
-        data: &[u8],
+        data: impl AsRef<[u8]>,
     ) -> Result<(&'a IdlTypeDefinition, Value)> {
         let mut idl_type_defs = self.types.clone();
         idl_type_defs.extend_from_slice(&self.accounts);
-        let (discriminator, data) = partition_discriminator_from_data(data);
+        let (discriminator, data) = partition_discriminator_from_data(data.as_ref());
         let type_def = self.account_definitions.get(&discriminator).ok_or(anyhow!(
             "Could not match account data against any discriminator"
         ))?;
@@ -37,7 +37,7 @@ impl IdlWithDiscriminators {
     /// Deserialize account data, returning a [DeserializedAccount] containing a [Value] with parsed fields.
     pub fn try_account_data_to_value(
         &self,
-        account: &Account,
+        account: &impl ReadableAccount,
     ) -> anyhow::Result<DeserializedAccount> {
         let (account_type, deserialized) = self.try_account_data_to_value_inner(account.data())?;
         Ok(DeserializedAccount {
