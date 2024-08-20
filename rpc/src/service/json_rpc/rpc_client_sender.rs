@@ -8,31 +8,29 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tower::{Layer, Service, ServiceBuilder, ServiceExt};
+use tower::{Layer, ServiceBuilder, ServiceExt};
 
 use super::reqwest_client::ReqwestRpcSender;
-use super::{RpcSenderFuture, RpcSenderService};
+use super::RpcSenderService;
 
 #[tracing::instrument(skip_all)]
-async fn process_requests<T>(
-    mut inner: T,
+async fn process_requests<S>(
+    mut rpc_sender_service: S,
     stats: Arc<RwLock<TransportStats>>,
     mut rx: mpsc::UnboundedReceiver<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
-) where
-    T: Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderFuture>
-        + Send
-        + Sync
-        + 'static,
+) -> S
+where
+    S: RpcSenderService + 'static,
 {
     loop {
         match rx.recv().await {
             Some((value, tx)) => {
                 let (method, params) = value;
-                if let Err(e) = inner.ready().await {
+                if let Err(e) = rpc_sender_service.ready().await {
                     tracing::error!(err=?e);
-                    return;
+                    return rpc_sender_service;
                 }
-                let fut = inner.call((method, params));
+                let fut = rpc_sender_service.call((method, params));
                 let stats_clone = stats.clone();
                 // On Drop::drop(), time is recorded
                 tokio::spawn(async move {
@@ -47,27 +45,26 @@ async fn process_requests<T>(
         }
     }
     tracing::error!("terminating request processing routine");
+    rpc_sender_service
 }
 
 // Top level service struct.
-pub struct RpcClientSender {
-    pub request_processing_handle: JoinHandle<()>,
+pub struct RpcClientSender<T> {
+    pub request_processing_handle: JoinHandle<T>,
     stats: Arc<RwLock<TransportStats>>,
     url: String,
     transmitter: UnboundedSender<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
 }
-impl RpcClientSender {
-    pub fn new<T>(inner: T, url: String) -> Self
-    where
-        T: Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderFuture>
-            + Send
-            + Sync
-            + 'static,
-    {
+
+impl<T> RpcClientSender<T>
+where
+    T: RpcSenderService + 'static,
+{
+    pub fn new(service: T, url: String) -> Self {
         let (tx, rx) =
             mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
         let stats = Arc::new(RwLock::new(TransportStats::default()));
-        let handle = tokio::spawn(process_requests(inner, stats.clone(), rx));
+        let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
         Self {
             request_processing_handle: handle,
             url: url.clone(),
@@ -75,22 +72,16 @@ impl RpcClientSender {
             transmitter: tx,
         }
     }
-    pub fn new_from_builder<U, L, T>(url: U, builder: ServiceBuilder<L>) -> Self
+    pub fn new_from_builder<L>(url: String, builder: ServiceBuilder<L>) -> Self
     where
-        U: ToString,
         L: Layer<ReqwestRpcSender, Service = T>,
-        T: RpcSenderService + 'static, // T: Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderFuture>
-                                       //     + Send
-                                       //     + Sync
-                                       //     + 'static,
     {
-        let inner = ReqwestRpcSender::new(url.to_string());
-        let url = url.to_string();
-        let inner = builder.service(inner);
+        let service = ReqwestRpcSender::new(url.clone());
+        let service = builder.service(service);
         let (tx, rx) =
             mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
         let stats = Arc::new(RwLock::new(TransportStats::default()));
-        let handle = tokio::spawn(process_requests(inner, stats.clone(), rx));
+        let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
         Self {
             request_processing_handle: handle,
             url,
@@ -98,13 +89,9 @@ impl RpcClientSender {
             transmitter: tx,
         }
     }
-
-    pub fn foo() {
-        // Start a routine that waits for messages, and processes them using &mut able things
-    }
 }
 
-impl RpcClientSender {
+impl RpcClientSender<ReqwestRpcSender> {
     pub fn new_reqwest(url: String) -> Self {
         let inner = ReqwestRpcSender::new(url.clone());
         let (tx, rx) =
@@ -121,7 +108,10 @@ impl RpcClientSender {
 }
 
 #[async_trait::async_trait]
-impl RpcSender for RpcClientSender {
+impl<T> RpcSender for RpcClientSender<T>
+where
+    T: RpcSenderService,
+{
     async fn send(
         &self,
         request: RpcRequest,

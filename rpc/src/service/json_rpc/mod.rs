@@ -26,15 +26,26 @@ pub type RpcSenderResult<T> = Result<T, ClientError>;
 /// The response type to `RpcSender::send`.
 pub type RpcSenderResponse = RpcSenderResult<Value>;
 /// The return type of an RpcSenderService
-pub type RpcSenderFuture = Pin<Box<dyn Future<Output = RpcSenderResponse> + Send>>;
+pub type RpcSenderResponseFuture = Pin<Box<dyn Future<Output = RpcSenderResponse> + Send>>;
 
+/// Marker trait for anything that implements the [tower::Service] trait with
+/// the appropriate request and response types.
+///
+/// Any type that implements this trait can be wrapped in an [RpcClientSender]
+/// and inherit the [RpcSender] trait as a consequence.
+/// This allows one to make full use of the tower Service interface to compose
+/// custom middleware, mocked return values, caches, retry mechanisms, and much more.
+///
+/// See [ReqwestRpcSender] for an example implementation of the [tower::Service] trait.
 pub trait RpcSenderService:
-    tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderFuture> + Send + Sync
+    tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderResponseFuture>
+    + Send
+    + Sync
 {
 }
 
 impl<T> RpcSenderService for T where
-    T: tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderFuture>
+    T: tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderResponseFuture>
         + Send
         + Sync
 {
@@ -66,6 +77,7 @@ struct RpcErrorObject {
 }
 
 impl RpcErrorObject {
+    /// Certain special values get dedicating checking and parsing routines.
     fn parse_value(json: Value) -> RpcSenderResponse {
         let rpc_error_object =
             serde_json::from_value::<RpcErrorObject>(json.clone()).map_err(|e| {
@@ -108,8 +120,11 @@ impl RpcErrorObject {
     }
 }
 
+/// Parse a generic JSON-RPC response by either:
+/// - Extracting the "result" field from a successful response, or
+/// - Parsing the "error" field from an error response
 #[tracing::instrument]
-pub fn to_solana_rpc_result(mut json: Value) -> RpcSenderResponse {
+pub fn jsonrpc_to_solanarpc(mut json: Value) -> RpcSenderResponse {
     if json["error"].is_object() {
         tracing::error!(jsonrpc_error = ?json);
         return RpcErrorObject::parse_value(json["error"].take());

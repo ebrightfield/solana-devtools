@@ -164,7 +164,7 @@ mod tests {
     async fn service_order_doesnt_matter() {
         // Construct in a different order than below
         let sender = RpcClientSender::new_from_builder(
-            "http://localhost:8899",
+            "http://localhost:8899".to_string(),
             ServiceBuilder::new()
                 .layer_fn(|s| {
                     FilterMiddleware::new(s, |req: &RpcRequest, _: &Value| match &req {

@@ -13,7 +13,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tower::Service;
 
-use super::{to_solana_rpc_result, RpcSenderFuture};
+use super::{jsonrpc_to_solanarpc, RpcSenderResponseFuture};
 
 /// A vanilla [reqwest] based [RpcSender].
 #[derive(Debug, Default)]
@@ -76,7 +76,7 @@ impl Service<RpcSenderRequest> for ReqwestRpcSender {
     type Response = Value;
     type Error = ClientError;
 
-    type Future = RpcSenderFuture;
+    type Future = RpcSenderResponseFuture;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -106,7 +106,7 @@ impl Future for WrappedReqwestFuture {
                 }
                 Poll::Ready(r) => {
                     return Poll::Ready(match r {
-                        Ok(value) => to_solana_rpc_result(value),
+                        Ok(value) => jsonrpc_to_solanarpc(value),
                         Err(e) => Err(ClientError::from(e)),
                     });
                 }
