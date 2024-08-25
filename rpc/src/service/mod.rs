@@ -17,7 +17,7 @@ mod tests {
     use solana_client::client_error::{ClientError, ClientErrorKind};
     use solana_client::rpc_request::RpcRequest;
 
-    use crate::middleware::{RpcSenderFilter, RpcSenderMiddleware};
+    use crate::middleware::{RpcSenderMiddleware, TooManyRequestsRetry};
     use crossbeam_channel::{unbounded, Receiver};
     use futures_util::future;
     use json_rpc::{reqwest_client::ReqwestRpcSender, RpcClientSender};
@@ -168,15 +168,13 @@ mod tests {
         let sender = RpcClientSender::new_from_builder(
             "http://localhost:8899".to_string(),
             ServiceBuilder::new()
-                .layer_fn(|s| {
-                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match &req {
-                        RpcRequest::GetBalance => Ok(()),
-                        RpcRequest::GetVersion => Ok(()),
-                        RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
-                            "RPC Method not allowed".to_string(),
-                        ))) as BoxError),
-                    })
+                .filter(|req: (RpcRequest, Value)| match &req.0 {
+                    RpcRequest::GetBalance => Ok(req),
+                    RpcRequest::GetVersion => Ok(req),
+                    RpcRequest::GetLatestBlockhash => Ok(req),
+                    _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                        "RPC Method not allowed".to_string(),
+                    ))) as BoxError),
                 })
                 .rate_limit(5, Duration::from_secs(60)),
         );
@@ -193,15 +191,13 @@ mod tests {
             rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(2, Duration::from_millis(600))
-                .layer_fn(|s| {
-                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match &req {
-                        RpcRequest::GetBalance => Ok(()),
-                        RpcRequest::GetVersion => Ok(()),
-                        RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
-                            "RPC Method not allowed".to_string(),
-                        ))) as BoxError),
-                    })
+                .filter(|req: (RpcRequest, Value)| match &req.0 {
+                    RpcRequest::GetBalance => Ok(req),
+                    RpcRequest::GetVersion => Ok(req),
+                    RpcRequest::GetLatestBlockhash => Ok(req),
+                    _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                        "RPC Method not allowed".to_string(),
+                    ))) as BoxError),
                 }),
         );
         let rpc_client = RpcClient::new_sender(sender, Default::default());
@@ -252,33 +248,31 @@ mod tests {
                     Result::<_, BoxError>::Ok(res)
                 })
                 .concurrency_limit(1024)
-                .layer_fn(|s| {
-                    RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
-                        if let RpcRequest::GetBalance = req {
-                            tracing::info!(value=?v);
-                            let resp = serde_json::to_value(Response {
-                                context: RpcResponseContext {
-                                    slot: 100,
-                                    api_version: None,
-                                },
-                                value: 123456789,
-                            })
-                            .unwrap();
-                            tracing::info!(?resp);
-                            return Some(Ok(resp));
-                        }
-                        None
-                    })
-                })
-                .layer_fn(|s| {
-                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match req {
-                        RpcRequest::GetBalance => Ok(()),
-                        RpcRequest::GetVersion => Ok(()),
-                        RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
-                            "RPC Method not allowed".to_string(),
-                        ))) as BoxError),
-                    })
+                // .layer_fn(|s| {
+                //     RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
+                //         if let RpcRequest::GetBalance = req {
+                //             tracing::info!(value=?v);
+                //             let resp = serde_json::to_value(Response {
+                //                 context: RpcResponseContext {
+                //                     slot: 100,
+                //                     api_version: None,
+                //                 },
+                //                 value: 123456789,
+                //             })
+                //             .unwrap();
+                //             tracing::info!(?resp);
+                //             return Some(Ok(resp));
+                //         }
+                //         None
+                //     })
+                // })
+                .filter(|req: (RpcRequest, Value)| match &req.0 {
+                    RpcRequest::GetBalance => Ok(req),
+                    RpcRequest::GetVersion => Ok(req),
+                    RpcRequest::GetLatestBlockhash => Ok(req),
+                    _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                        "RPC Method not allowed".to_string(),
+                    ))) as BoxError),
                 }),
         );
 
@@ -329,20 +323,16 @@ mod tests {
 
     #[tokio::test]
     async fn service_fn_test() {
-        let f = service_fn(fake_service);
-
         let service = ServiceBuilder::new()
-            .layer_fn(|s| {
-                RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match req {
-                    RpcRequest::GetBalance => Ok(()),
-                    RpcRequest::GetVersion => Ok(()),
-                    RpcRequest::GetLatestBlockhash => Ok(()),
-                    _ => Err(Box::new(ClientError::from(TransportError::Custom(
-                        "RPC Method not allowed".to_string(),
-                    ))) as BoxError),
-                })
+            .filter(|req: (RpcRequest, Value)| match &req.0 {
+                RpcRequest::GetBalance => Ok(req),
+                RpcRequest::GetVersion => Ok(req),
+                RpcRequest::GetLatestBlockhash => Ok(req),
+                _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                    "RPC Method not allowed".to_string(),
+                ))) as BoxError),
             })
-            .service(f);
+            .service_fn(fake_service);
 
         let sender = RpcClientSender::new(service, "ram://".to_string());
 
@@ -367,8 +357,9 @@ mod tests {
         let rpc_addr = rx.recv().unwrap();
         let rpc_addr = format!("http://{}/", rpc_addr);
         let service = ServiceBuilder::new()
-            .layer(ReqwestConfigLayer::new(rpc_addr.clone()).unwrap())
+            .layer(JsonRpcRequestLayer::new(rpc_addr.clone()).unwrap())
             .and_then(parse_response_body)
+            .retry(TooManyRequestsRetry::new(4))
             .service(reqwest::Client::builder().build().unwrap());
 
         let sender = RpcClientSender::new(service, rpc_addr.to_string());

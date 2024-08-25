@@ -1,17 +1,15 @@
 use crate::json_rpc::stats_updater::{StatsUpdater, TransportStats};
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
-use futures::future::BoxFuture;
 use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::rpc_request::RpcRequest;
 use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
-use std::future::Future;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
+use tower::{BoxError, Layer, ServiceBuilder, ServiceExt};
 
 use super::reqwest_client::ReqwestRpcSender;
 

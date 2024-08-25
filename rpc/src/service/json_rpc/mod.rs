@@ -1,16 +1,11 @@
 use std::{
     future::Future,
-    pin::Pin,
-    str::FromStr,
     sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
     time::Duration,
 };
 
-use futures::{
-    future::{self, BoxFuture},
-    FutureExt,
-};
+use futures::future::BoxFuture;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
     Method, Url,
@@ -167,13 +162,13 @@ pub struct JsonRpcToSolanaRpc;
 // 2. A layer to convert JSON-RPC Error, and start working with a BoxError.
 
 #[derive(Debug, Clone)]
-pub struct ReqwestConfigLayer {
+pub struct JsonRpcRequestLayer {
     pub headers: HeaderMap,
     pub timeout: Duration,
     pub url: Url,
 }
 
-impl ReqwestConfigLayer {
+impl JsonRpcRequestLayer {
     pub fn new(url: impl AsRef<str>) -> Result<Self, BoxError> {
         let url = Url::parse(url.as_ref())?;
 
@@ -193,11 +188,11 @@ impl ReqwestConfigLayer {
     }
 }
 
-impl<S> Layer<S> for ReqwestConfigLayer {
-    type Service = ReqwestConfigService<S>;
+impl<S> Layer<S> for JsonRpcRequestLayer {
+    type Service = JsonRpcRequestBuilder<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        ReqwestConfigService {
+        JsonRpcRequestBuilder {
             service,
             request_id: AtomicU64::new(0),
             headers: self.headers.clone(),
@@ -209,7 +204,7 @@ impl<S> Layer<S> for ReqwestConfigLayer {
 
 /// Service for layering in configuration to a [reqwest::Request]
 /// and constructing the JSON-RPC body.
-pub struct ReqwestConfigService<S> {
+pub struct JsonRpcRequestBuilder<S> {
     service: S,
     request_id: AtomicU64,
     headers: HeaderMap,
@@ -217,7 +212,7 @@ pub struct ReqwestConfigService<S> {
     url: Url,
 }
 
-impl<S> Service<RpcSenderRequest> for ReqwestConfigService<S>
+impl<S> Service<RpcSenderRequest> for JsonRpcRequestBuilder<S>
 where
     S: Service<reqwest::Request>,
 {
