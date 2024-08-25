@@ -1,5 +1,5 @@
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
-use futures::future::BoxFuture;
+use futures::future::{AndThen, BoxFuture};
 use reqwest::header::RETRY_AFTER;
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -10,6 +10,47 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::time::Sleep;
 use tower::{retry, BoxError, Service};
+
+// #[derive(Debug)]
+// pub struct RpcSenderMiddleware<S, F> {
+//     inner: S,
+//     f: F,
+// }
+
+// impl<S, F> RpcSenderMiddleware<S, F> {
+//     pub fn new(s: S, f: F) -> Self {
+//         Self { inner: s, f }
+//     }
+// }
+
+// impl<S, F, T> Service<T> for RpcSenderMiddleware<S, F>
+// where
+//     S: Service<T>,
+//     F: for<'a> Fn(&'a T) -> Option<Result<S::Response, S::Error>>,
+//     T: Send,
+// {
+//     type Response = S::Response;
+//     type Error = S::Error;
+//     type Future = BoxFuture<'static, Result<S::Response, S::Error>>;
+
+//     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+//         Poll::Ready(Ok(()))
+//     }
+
+//     fn call(&mut self, req: T) -> Self::Future {
+//         let result = (self.f)(&req);
+//         match result {
+//             None => self.inner.call(req),
+//             Some(result) => result,
+//         }
+//         // Box::pin(async move {
+//         //     match fut.await {
+//         //         None => self.inner.call(req).await,
+//         //         Some(result) => result,
+//         //     }
+//         // })
+//     }
+// }
 
 #[derive(Debug)]
 pub struct RpcSenderMiddleware<S, F> {
@@ -23,21 +64,26 @@ impl<S, F> RpcSenderMiddleware<S, F> {
     }
 }
 
-impl<S, F, T> Service<T> for RpcSenderMiddleware<S, F>
+impl<S, F> Service<RpcSenderRequest> for RpcSenderMiddleware<S, F>
 where
-    S: Service<T>,
-    F: for<'a> Fn(&'a T) -> Option<S::Response>,
+    S: Service<
+            RpcSenderRequest,
+            Future = Pin<Box<(dyn Future<Output = RpcSenderResponse> + Send)>>,
+        > + Send
+        + Sync,
+    F: for<'a> Fn(&'a RpcRequest, &'a Value) -> Option<RpcSenderResponse>,
 {
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = BoxFuture<'static, Result<S::Response, S::Error>>;
+    type Response = Value;
+    type Error = BoxError;
+
+    type Future = Pin<Box<(dyn Future<Output = Result<Value, BoxError>> + Send)>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: T) -> Self::Future {
-        match (self.f)(&req) {
+    fn call(&mut self, req: RpcSenderRequest) -> Self::Future {
+        match (self.f)(&req.0, &req.1) {
             None => self.inner.call(req),
             Some(result) => Box::pin(ready(result)),
         }
@@ -92,34 +138,6 @@ impl retry::Policy<reqwest::Request, reqwest::Response, reqwest::Error> for TooM
             }
         }
         None
-
-        // if !response.status().is_success() {
-        //     if response.status() == StatusCode::TOO_MANY_REQUESTS
-        //         && too_many_requests_retries > 0
-        //     {
-        //         let mut duration = Duration::from_millis(500);
-        //         if let Some(retry_after) = response.headers().get(RETRY_AFTER) {
-        //             if let Ok(retry_after) = retry_after.to_str() {
-        //                 if let Ok(retry_after) = retry_after.parse::<u64>() {
-        //                     if retry_after < 120 {
-        //                         duration = Duration::from_secs(retry_after);
-        //                     }
-        //                 }
-        //             }
-        //         }
-
-        //         too_many_requests_retries -= 1;
-        //         debug!(
-        //                     "Too many requests: server responded with {:?}, {} retries left, pausing for {:?}",
-        //                     response, too_many_requests_retries, duration
-        //                 );
-
-        //         sleep(duration).await;
-        //         stats_updater.add_rate_limited_time(duration);
-        //         continue;
-        //     }
-        //     return Err(response.error_for_status().unwrap_err().into());
-        // }
     }
 
     fn clone_request(&mut self, req: &reqwest::Request) -> Option<reqwest::Request> {

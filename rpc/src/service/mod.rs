@@ -243,29 +243,30 @@ mod tests {
                         Ok(resp)
                     })
                 })
-                .filter(|res| {
+                .filter(|request| {
                     tracing::info!("from inside the `filter` function");
-                    Result::<_, BoxError>::Ok(res)
+                    Result::<_, BoxError>::Ok(request)
                 })
                 .concurrency_limit(1024)
-                // .layer_fn(|s| {
-                //     RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
-                //         if let RpcRequest::GetBalance = req {
-                //             tracing::info!(value=?v);
-                //             let resp = serde_json::to_value(Response {
-                //                 context: RpcResponseContext {
-                //                     slot: 100,
-                //                     api_version: None,
-                //                 },
-                //                 value: 123456789,
-                //             })
-                //             .unwrap();
-                //             tracing::info!(?resp);
-                //             return Some(Ok(resp));
-                //         }
-                //         None
-                //     })
-                // })
+                .map_future(|future| async move { future.await })
+                .layer_fn(|s| {
+                    RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
+                        if let RpcRequest::GetBalance = req {
+                            tracing::info!(value=?v);
+                            let resp = serde_json::to_value(Response {
+                                context: RpcResponseContext {
+                                    slot: 100,
+                                    api_version: None,
+                                },
+                                value: 123456789,
+                            })
+                            .unwrap();
+                            tracing::info!(?resp);
+                            return Some(Ok(resp));
+                        }
+                        None
+                    })
+                })
                 .filter(|req: (RpcRequest, Value)| match &req.0 {
                     RpcRequest::GetBalance => Ok(req),
                     RpcRequest::GetVersion => Ok(req),
