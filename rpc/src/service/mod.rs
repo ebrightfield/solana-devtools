@@ -15,7 +15,7 @@ mod tests {
     use solana_client::client_error::ClientError;
     use solana_client::rpc_request::RpcRequest;
 
-    use crate::middleware::FilterMiddleware;
+    use crate::middleware::{RpcSenderFilter, RpcSenderMiddleware};
     use crossbeam_channel::{unbounded, Receiver};
     use futures_util::future;
     use json_rpc::{reqwest_client::ReqwestRpcSender, RpcClientSender};
@@ -167,7 +167,7 @@ mod tests {
             "http://localhost:8899".to_string(),
             ServiceBuilder::new()
                 .layer_fn(|s| {
-                    FilterMiddleware::new(s, |req: &RpcRequest, _: &Value| match &req {
+                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match &req {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
@@ -192,7 +192,7 @@ mod tests {
             ServiceBuilder::new()
                 .rate_limit(2, Duration::from_millis(600))
                 .layer_fn(|s| {
-                    FilterMiddleware::new(s, |req: &RpcRequest, _: &Value| match &req {
+                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match &req {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
@@ -239,8 +239,27 @@ mod tests {
             rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(5, Duration::from_secs(60))
+                .concurrency_limit(1024)
                 .layer_fn(|s| {
-                    FilterMiddleware::new(s, |req: &RpcRequest, _: &Value| match req {
+                    RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
+                        if let RpcRequest::GetBalance = req {
+                            tracing::info!(value=?v);
+                            let resp = serde_json::to_value(Response {
+                                context: RpcResponseContext {
+                                    slot: 100,
+                                    api_version: None,
+                                },
+                                value: 123456789,
+                            })
+                            .unwrap();
+                            tracing::info!(?resp);
+                            return Some(Ok(resp));
+                        }
+                        None
+                    })
+                })
+                .layer_fn(|s| {
+                    RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match req {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
@@ -257,7 +276,7 @@ mod tests {
             .get_balance(&pubkey!("deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHh"))
             .await
             .unwrap();
-        assert_eq!(balance, 50);
+        assert_eq!(balance, 123456789);
         let result = rpc_client.get_slot().await.unwrap_err();
         assert_eq!(
             result.to_string(),

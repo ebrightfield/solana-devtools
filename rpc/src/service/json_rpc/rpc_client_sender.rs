@@ -53,7 +53,7 @@ pub struct RpcClientSender<T> {
     pub request_processing_handle: JoinHandle<T>,
     stats: Arc<RwLock<TransportStats>>,
     url: String,
-    transmitter: UnboundedSender<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
+    tx: UnboundedSender<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
 }
 
 impl<T> RpcClientSender<T>
@@ -69,7 +69,7 @@ where
             request_processing_handle: handle,
             url: url.clone(),
             stats,
-            transmitter: tx,
+            tx,
         }
     }
     pub fn new_from_builder<L>(url: String, builder: ServiceBuilder<L>) -> Self
@@ -86,7 +86,7 @@ where
             request_processing_handle: handle,
             url,
             stats: Arc::new(RwLock::new(TransportStats::default())),
-            transmitter: tx,
+            tx,
         }
     }
 }
@@ -102,7 +102,7 @@ impl RpcClientSender<ReqwestRpcSender> {
             request_processing_handle: handle,
             url,
             stats: Arc::new(RwLock::new(TransportStats::default())),
-            transmitter: tx,
+            tx,
         }
     }
 }
@@ -118,11 +118,9 @@ where
         params: serde_json::Value,
     ) -> Result<serde_json::Value, ClientError> {
         let (tx, rx) = oneshot::channel();
-        self.transmitter
-            .send(((request, params), tx))
-            .map_err(|e| {
-                ClientError::new_with_request(ClientErrorKind::Custom(format!("{e}")), request)
-            })?;
+        self.tx.send(((request, params), tx)).map_err(|e| {
+            ClientError::new_with_request(ClientErrorKind::Custom(format!("{e}")), request)
+        })?;
         let resp = rx.await.map_err(|e| {
             ClientError::new_with_request(ClientErrorKind::Custom(format!("{e}")), request)
         })?;
