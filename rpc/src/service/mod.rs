@@ -32,7 +32,7 @@ mod tests {
     use std::str::FromStr;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, SystemTime};
-    use tower::ServiceBuilder;
+    use tower::{BoxError, ServiceBuilder};
     use tracing_subscriber::fmt::format::FmtSpan;
 
     fn spawn_test_server(host: &str) -> (Receiver<SocketAddr>, JoinHandle<()>) {
@@ -171,9 +171,9 @@ mod tests {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(ClientError::from(TransportError::Custom(
+                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
                             "RPC Method not allowed".to_string(),
-                        ))),
+                        ))) as BoxError),
                     })
                 })
                 .rate_limit(5, Duration::from_secs(60)),
@@ -196,9 +196,9 @@ mod tests {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(ClientError::from(TransportError::Custom(
+                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
                             "RPC Method not allowed".to_string(),
-                        ))),
+                        ))) as BoxError),
                     })
                 }),
         );
@@ -239,6 +239,16 @@ mod tests {
             rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(5, Duration::from_secs(60))
+                .and_then(|resp| {
+                    Box::pin(async move {
+                        tracing::error!(message = "from inside the `and_then` function", ?resp);
+                        Ok(resp)
+                    })
+                })
+                .filter(|res| {
+                    tracing::info!("from inside the `filter` function");
+                    Result::<_, BoxError>::Ok(res)
+                })
                 .concurrency_limit(1024)
                 .layer_fn(|s| {
                     RpcSenderMiddleware::new(s, |req: &RpcRequest, v: &Value| {
@@ -263,9 +273,9 @@ mod tests {
                         RpcRequest::GetBalance => Ok(()),
                         RpcRequest::GetVersion => Ok(()),
                         RpcRequest::GetLatestBlockhash => Ok(()),
-                        _ => Err(ClientError::from(TransportError::Custom(
+                        _ => Err(Box::new(ClientError::from(TransportError::Custom(
                             "RPC Method not allowed".to_string(),
-                        ))),
+                        ))) as BoxError),
                     })
                 }),
         );

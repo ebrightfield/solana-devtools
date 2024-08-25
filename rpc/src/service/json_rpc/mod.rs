@@ -1,7 +1,9 @@
 use std::{future::Future, pin::Pin};
 
+use futures::future::BoxFuture;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tower::BoxError;
 
 pub mod reqwest_client;
 pub mod rpc_client_sender;
@@ -20,13 +22,16 @@ use solana_client::{
 
 /// The data types sent to `RpcSender::send`, grouped into a tuple.
 pub type RpcSenderRequest = (RpcRequest, Value);
-pub use solana_client::client_error::ClientError;
+pub use solana_client::client_error::ClientError as SolanaClientError;
+
+use tower::BoxError as ClientError;
 
 pub type RpcSenderResult<T> = Result<T, ClientError>;
 /// The response type to `RpcSender::send`.
 pub type RpcSenderResponse = RpcSenderResult<Value>;
 /// The return type of an RpcSenderService
-pub type RpcSenderResponseFuture = Pin<Box<dyn Future<Output = RpcSenderResponse> + Send>>;
+pub type RpcSenderResponseFuture =
+    BoxFuture<'static, dyn Future<Output = RpcSenderResponse> + Send>;
 
 /// Marker trait for anything that implements the [tower::Service] trait with
 /// the appropriate request and response types.
@@ -38,15 +43,21 @@ pub type RpcSenderResponseFuture = Pin<Box<dyn Future<Output = RpcSenderResponse
 ///
 /// See [ReqwestRpcSender] for an example implementation of the [tower::Service] trait.
 pub trait RpcSenderService:
-    tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderResponseFuture>
-    + Send
+    tower::Service<
+        RpcSenderRequest,
+        Error = BoxError,
+        Future = BoxFuture<'static, Result<Value, BoxError>>,
+    > + Send
     + Sync
 {
 }
 
 impl<T> RpcSenderService for T where
-    T: tower::Service<RpcSenderRequest, Error = ClientError, Future = RpcSenderResponseFuture>
-        + Send
+    T: tower::Service<
+            RpcSenderRequest,
+            Error = BoxError,
+            Future = BoxFuture<'static, Result<Value, BoxError>>,
+        > + Send
         + Sync
 {
 }

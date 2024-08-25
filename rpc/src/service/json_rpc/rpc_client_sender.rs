@@ -1,5 +1,6 @@
 use crate::json_rpc::stats_updater::{StatsUpdater, TransportStats};
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
+use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::rpc_request::RpcRequest;
 use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
@@ -8,10 +9,9 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tower::{Layer, ServiceBuilder, ServiceExt};
+use tower::{BoxError, Layer, ServiceBuilder, ServiceExt};
 
 use super::reqwest_client::ReqwestRpcSender;
-use super::RpcSenderService;
 
 #[tracing::instrument(skip_all)]
 async fn process_requests<S>(
@@ -20,7 +20,8 @@ async fn process_requests<S>(
     mut rx: mpsc::UnboundedReceiver<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
 ) -> S
 where
-    S: RpcSenderService + 'static,
+    S: tower::Service<RpcSenderRequest, Response = Value, Error = BoxError>,
+    S::Future: Send + 'static,
 {
     loop {
         match rx.recv().await {
@@ -58,7 +59,8 @@ pub struct RpcClientSender<T> {
 
 impl<T> RpcClientSender<T>
 where
-    T: RpcSenderService + 'static,
+    T: tower::Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+    T::Future: Send + 'static,
 {
     pub fn new(service: T, url: String) -> Self {
         let (tx, rx) =
@@ -110,7 +112,8 @@ impl RpcClientSender<ReqwestRpcSender> {
 #[async_trait::async_trait]
 impl<T> RpcSender for RpcClientSender<T>
 where
-    T: RpcSenderService,
+    T: tower::Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+    T::Future: Send + 'static,
 {
     async fn send(
         &self,
@@ -124,8 +127,14 @@ where
         let resp = rx.await.map_err(|e| {
             ClientError::new_with_request(ClientErrorKind::Custom(format!("{e}")), request)
         })?;
-        tracing::info!(rpc_sender_return=?resp);
-        resp
+        let client_resp = resp.map_err(|e| match e.downcast::<ClientError>() {
+            Ok(client_error) => *client_error,
+            Err(e) => {
+                ClientError::new_with_request(ClientErrorKind::Custom(format!("{e}")), request)
+            }
+        });
+        tracing::info!(rpc_sender_return=?client_resp);
+        client_resp
     }
 
     fn get_transport_stats(&self) -> RpcTransportStats {
