@@ -66,25 +66,23 @@ impl<S, F> RpcSenderMiddleware<S, F> {
 
 impl<S, F> Service<RpcSenderRequest> for RpcSenderMiddleware<S, F>
 where
-    S: Service<
-            RpcSenderRequest,
-            Future = Pin<Box<(dyn Future<Output = RpcSenderResponse> + Send)>>,
-        > + Send
-        + Sync,
+    S: Service<RpcSenderRequest, Response = Value, Error = BoxError>,
+    S::Future: Send + 'static,
     F: for<'a> Fn(&'a RpcRequest, &'a Value) -> Option<RpcSenderResponse>,
 {
     type Response = Value;
     type Error = BoxError;
 
-    type Future = Pin<Box<(dyn Future<Output = Result<Value, BoxError>> + Send)>>;
+    type Future = BoxFuture<'static, Result<Value, BoxError>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // self.inner.poll_ready(cx)
         Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: RpcSenderRequest) -> Self::Future {
         match (self.f)(&req.0, &req.1) {
-            None => self.inner.call(req),
+            None => Box::pin(self.inner.call(req)),
             Some(result) => Box::pin(ready(result)),
         }
     }
