@@ -11,8 +11,10 @@ pub use solana_client::rpc_request::RpcRequest;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::future::BoxFuture;
+    use reqwest_client::parse_response_body;
     use serde_json::Value;
-    use solana_client::client_error::ClientError;
+    use solana_client::client_error::{ClientError, ClientErrorKind};
     use solana_client::rpc_request::RpcRequest;
 
     use crate::middleware::{RpcSenderFilter, RpcSenderMiddleware};
@@ -32,7 +34,7 @@ mod tests {
     use std::str::FromStr;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, SystemTime};
-    use tower::{BoxError, ServiceBuilder};
+    use tower::{service_fn, BoxError, ServiceBuilder};
     use tracing_subscriber::fmt::format::FmtSpan;
 
     fn spawn_test_server(host: &str) -> (Receiver<SocketAddr>, JoinHandle<()>) {
@@ -292,6 +294,98 @@ mod tests {
             result.to_string(),
             ClientError::from(TransportError::Custom("RPC Method not allowed".to_string()))
                 .to_string()
+        );
+    }
+
+    fn fake_service(request: RpcSenderRequest) -> BoxFuture<'static, Result<Value, BoxError>> {
+        Box::pin(async move {
+            let (method, params) = request;
+            match method {
+                RpcRequest::GetBalance => {
+                    tracing::info!(?params);
+                    let resp = serde_json::to_value(Response {
+                        context: RpcResponseContext {
+                            slot: 100,
+                            api_version: None,
+                        },
+                        value: 123456789,
+                    })
+                    .unwrap();
+                    tracing::info!(?resp);
+                    Ok(resp)
+                }
+                RpcRequest::GetVersion => Ok(serde_json::to_value(RpcVersionInfo {
+                    solana_core: "1.18.21".to_string(),
+                    feature_set: Some(99),
+                })
+                .unwrap()),
+                _ => Err(Box::new(ClientError::new_with_request(
+                    ClientErrorKind::Custom("foo".to_string()),
+                    method,
+                )) as BoxError),
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn service_fn_test() {
+        let f = service_fn(fake_service);
+
+        let service = ServiceBuilder::new()
+            .layer_fn(|s| {
+                RpcSenderFilter::new(s, |req: &RpcRequest, _: &Value| match req {
+                    RpcRequest::GetBalance => Ok(()),
+                    RpcRequest::GetVersion => Ok(()),
+                    RpcRequest::GetLatestBlockhash => Ok(()),
+                    _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                        "RPC Method not allowed".to_string(),
+                    ))) as BoxError),
+                })
+            })
+            .service(f);
+
+        let sender = RpcClientSender::new(service, "ram://".to_string());
+
+        let rpc_client = RpcClient::new_sender(sender, Default::default());
+
+        let balance = rpc_client
+            .get_balance(&pubkey!("deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHh"))
+            .await
+            .unwrap();
+        assert_eq!(balance, 123456789);
+        let result = rpc_client.get_slot().await.unwrap_err();
+        assert_eq!(
+            result.to_string(),
+            ClientError::from(TransportError::Custom("RPC Method not allowed".to_string()))
+                .to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn service_fn_test2() {
+        let (rx, _) = spawn_test_server("0.0.0.0:0");
+        let rpc_addr = rx.recv().unwrap();
+        let rpc_addr = format!("http://{}/", rpc_addr);
+        let service = ServiceBuilder::new()
+            .layer(ReqwestConfigLayer::new(rpc_addr.clone()).unwrap())
+            .and_then(parse_response_body)
+            .service(reqwest::Client::builder().build().unwrap());
+
+        let sender = RpcClientSender::new(service, rpc_addr.to_string());
+
+        let rpc_client = RpcClient::new_sender(sender, Default::default());
+        let balance = rpc_client
+            .get_balance(&pubkey!("deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHh"))
+            .await
+            .unwrap();
+        assert_eq!(balance, 50);
+        let result = rpc_client.get_slot().await.unwrap_err();
+        assert_eq!(
+            result.to_string(),
+            ClientError::from(TransportError::Custom(
+                "RPC response error -32601: Method not found ".to_string()
+            ))
+            .to_string()
         );
     }
 }

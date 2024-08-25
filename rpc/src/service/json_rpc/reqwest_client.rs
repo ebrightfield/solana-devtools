@@ -1,4 +1,6 @@
-use crate::json_rpc::{jsonrpc_request, rust_version, APPLICATION_JSON, SOLANA_CLIENT};
+use crate::json_rpc::{
+    jsonrpc_request_body, rust_version, RpcErrorObject, APPLICATION_JSON, SOLANA_CLIENT,
+};
 use crate::service::json_rpc::RpcSenderRequest;
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -70,7 +72,7 @@ impl ReqwestRpcSender {
             .expect("reqwest client");
         let span = tracing::info_span!("http_jsonrpc_request", ?method, ?params, request_id);
         async move {
-            let jsonrpc_request = jsonrpc_request(method.to_string(), params, request_id);
+            let jsonrpc_request = jsonrpc_request_body(method.to_string(), params, request_id);
             tracing::info!(?jsonrpc_request);
             let http_response = Box::pin(client.post(&url).body(jsonrpc_request).send());
             WrappedReqwestFuture {
@@ -136,6 +138,24 @@ impl Future for WrappedReqwestFuture {
                     Poll::Ready(Err(e.into()))
                 }
             },
+        }
+    }
+}
+
+pub async fn parse_response_body(response: reqwest::Response) -> Result<Value, BoxError> {
+    tracing::info!("{:?}", response);
+    match response.json().await {
+        Err(e) => {
+            tracing::error!(http_error=?e);
+            Err(Box::new(e) as BoxError)
+        }
+        Result::<Value, _>::Ok(mut json) => {
+            if json["error"].is_object() {
+                tracing::error!(jsonrpc_error = ?json);
+                return RpcErrorObject::parse_value(json["error"].take());
+            }
+            tracing::info!(jsonrpc_response=?json);
+            Ok(json["result"].take())
         }
     }
 }

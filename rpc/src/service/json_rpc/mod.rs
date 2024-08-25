@@ -1,9 +1,23 @@
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+    str::FromStr,
+    sync::atomic::{AtomicU64, Ordering},
+    task::{Context, Poll},
+    time::Duration,
+};
 
-use futures::future::BoxFuture;
+use futures::{
+    future::{self, BoxFuture},
+    FutureExt,
+};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
+    Method, Url,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tower::BoxError;
+use tower::{BoxError, Layer, Service};
 
 pub mod reqwest_client;
 pub mod rpc_client_sender;
@@ -70,7 +84,7 @@ pub(crate) fn rust_version() -> String {
     format!("rust/{}", solana_version::Version::default())
 }
 
-pub(crate) fn jsonrpc_request(method: String, params: Value, request_id: u64) -> String {
+pub(crate) fn jsonrpc_request_body(method: String, params: Value, request_id: u64) -> String {
     json!({
        "jsonrpc": JSON_RPC,
        "id": request_id,
@@ -143,3 +157,178 @@ pub fn jsonrpc_to_solanarpc(mut json: Value) -> RpcSenderResponse {
     tracing::info!(jsonrpc_response=?json);
     Ok(json["result"].take())
 }
+
+/// Parse the error value from a `Reqwest`
+pub struct JsonRpcToSolanaRpc;
+
+// 0. Reqwest Clients already implement Service! That's dope.
+// 1. A layer to build `Request` objects with JSON-RPC payload, headers, etc.
+//    - Stores Request ID incrementer, additional headers, timeout, URL
+// 2. A layer to convert JSON-RPC Error, and start working with a BoxError.
+
+#[derive(Debug, Clone)]
+pub struct ReqwestConfigLayer {
+    pub headers: HeaderMap,
+    pub timeout: Duration,
+    pub url: Url,
+}
+
+impl ReqwestConfigLayer {
+    pub fn new(url: impl AsRef<str>) -> Result<Self, BoxError> {
+        let url = Url::parse(url.as_ref())?;
+
+        let timeout = Duration::from_secs(30);
+
+        let mut headers = HeaderMap::new();
+        headers.append(
+            HeaderName::from_static(SOLANA_CLIENT),
+            HeaderValue::from_str(&rust_version()).unwrap(),
+        );
+        headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
+        Ok(Self {
+            headers,
+            timeout,
+            url,
+        })
+    }
+}
+
+impl<S> Layer<S> for ReqwestConfigLayer {
+    type Service = ReqwestConfigService<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        ReqwestConfigService {
+            service,
+            request_id: AtomicU64::new(0),
+            headers: self.headers.clone(),
+            timeout: self.timeout.clone(),
+            url: self.url.clone(),
+        }
+    }
+}
+
+/// Service for layering in configuration to a [reqwest::Request]
+/// and constructing the JSON-RPC body.
+pub struct ReqwestConfigService<S> {
+    service: S,
+    request_id: AtomicU64,
+    headers: HeaderMap,
+    timeout: Duration,
+    url: Url,
+}
+
+impl<S> Service<RpcSenderRequest> for ReqwestConfigService<S>
+where
+    S: Service<reqwest::Request>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: RpcSenderRequest) -> Self::Future {
+        let (method, params) = request;
+        let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
+        let body = jsonrpc_request_body(method.to_string(), params, request_id);
+
+        let mut headers = HeaderMap::new();
+        headers.append(
+            HeaderName::from_static(SOLANA_CLIENT),
+            HeaderValue::from_str(&rust_version()).unwrap(),
+        );
+        headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
+        headers.extend(self.headers.clone());
+        let timeout = self.timeout.clone();
+
+        let mut request = reqwest::Request::new(Method::POST, self.url.clone());
+        *request.headers_mut() = headers;
+        *request.timeout_mut() = Some(timeout);
+        *request.body_mut() = Some(body.into());
+        self.service.call(request)
+    }
+}
+
+// pub struct ParseClientErrorLayer;
+
+// impl<S> Layer<S> for ParseClientErrorLayer {
+//     type Service = ParseJsonRpcResponseService<S>;
+
+//     fn layer(&self, service: S) -> Self::Service {
+//         ParseJsonRpcResponseService { service }
+//     }
+// }
+
+// // pub struct ParseJsonRpcResponseService<S> {
+// //     service: S,
+// // }
+
+// // impl<S, T> Service<T> for ParseJsonRpcResponseService<S>
+// // where
+// //     S: Service<
+// //         T,
+// //         Response = reqwest::Response,
+// //         // Error = BoxError,
+// //         // Future = BoxFuture<'static, Result<reqwest::Response, BoxError>>,
+// //     >,
+// // {
+// //     type Response = Value;
+// //     type Error = S::Error;
+// //     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+// //     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+// //         self.service.poll_ready(cx)
+// //     }
+
+// //     fn call(&mut self, request: T) -> Self::Future {
+// //         // self.service.poll_ready(cx)?;
+// //         // Box::pin(async move {
+// //         //     let response = self.service.call(request).await?;
+// //         //     Ok(Value::Null)
+// //         // })
+// //         // let (method, params) = request;
+// //         // let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
+// //         // let body = jsonrpc_request_body(method.to_string(), params, request_id);
+
+// //         // let mut headers = HeaderMap::new();
+// //         // headers.append(
+// //         //     HeaderName::from_static(SOLANA_CLIENT),
+// //         //     HeaderValue::from_str(&rust_version()).unwrap(),
+// //         // );
+// //         // headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
+// //         // headers.extend(self.headers.clone());
+// //         // let timeout = self.timeout.clone();
+
+// //         // let url = Url::from_str(&self.url).expect("RPC URL should parse");
+// //         // let mut request = reqwest::Request::new(Method::POST, url);
+// //         // *request.headers_mut() = headers;
+// //         // *request.timeout_mut() = Some(timeout);
+// //         // *request.body_mut() = Some(body.into());
+// //         // self.service.call(request)
+// //     }
+// // }
+
+// // pub struct ParseJsonRpcResponseFuture {
+// //     // The response body is awaited and parsed as JSON-RPC output after this
+// //     http_response: Pin<Box<dyn Future<Output = Result<reqwest::Response, reqwest::Error>> + Send>>,
+// // }
+
+// // impl Future for ParseJsonRpcResponseFuture {
+// //     type Output = Result<Value, reqwest::Error>;
+
+// //     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+// //         match self.http_response.poll_unpin(cx) {
+// //             Poll::Pending => {
+// //                 return Poll::Pending;
+// //             }
+// //             Poll::Ready(r) => {
+// //                 return Poll::Ready(match r {
+// //                     Ok(value) => jsonrpc_to_solanarpc(value),
+// //                     Err(e) => Err(e),
+// //                 });
+// //             }
+// //         }
+// //     }
+// // }
