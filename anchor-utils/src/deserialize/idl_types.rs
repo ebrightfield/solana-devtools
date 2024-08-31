@@ -134,7 +134,7 @@ impl IdlWithDiscriminators {
                 return Ok(Value::String(value.to_string()));
             }
             IdlType::Defined(defined_type) => {
-                if let Some((_, _, ty_def)) = self.find_type_definition_by_name(defined_type) {
+                if let Some((_, ty_def)) = self.find_type_definition_by_name(defined_type) {
                     return self.deserialize_struct_or_enum(ty_def, raw_data);
                 }
                 return Err(anyhow!("Couldn't find defined type: {}", &defined_type));

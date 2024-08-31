@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::deserialize::account::DeserializedAccount;
+use crate::deserialize::account::AccountDataValue;
 use crate::deserialize::AnchorDeserializer;
 use crate::deserialize::IdlWithDiscriminators;
 use anchor_lang::idl::IdlAccount;
@@ -8,6 +8,8 @@ use anyhow::{anyhow, Result};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_devtools_tx::inner_instructions::{DecompiledMessageAndInnerIx, HistoricalTransaction};
 use solana_program::pubkey::Pubkey;
+
+use super::account::AccountDataParser;
 
 impl AnchorDeserializer {
     pub async fn fetch_and_cache_idl_for_program(
@@ -56,10 +58,7 @@ impl AnchorDeserializer {
 }
 
 impl IdlWithDiscriminators {
-    pub async fn fetch_from_account(
-        client: &RpcClient,
-        idl_addr: &Pubkey,
-    ) -> anyhow::Result<IdlWithDiscriminators> {
+    pub async fn fetch_from_account(client: &RpcClient, idl_addr: &Pubkey) -> anyhow::Result<Self> {
         let account = client
             .get_account(idl_addr)
             .await
@@ -67,10 +66,7 @@ impl IdlWithDiscriminators {
         Self::try_from(account)
     }
 
-    pub async fn fetch_for_program(
-        client: &RpcClient,
-        program_id: &Pubkey,
-    ) -> Result<IdlWithDiscriminators> {
+    pub async fn fetch_for_program(client: &RpcClient, program_id: &Pubkey) -> Result<Self> {
         let idl_addr = IdlAccount::address(program_id);
         let account = client
             .get_account(&idl_addr)
@@ -83,8 +79,8 @@ impl IdlWithDiscriminators {
         &self,
         client: &RpcClient,
         pubkey: &Pubkey,
-    ) -> Result<DeserializedAccount> {
+    ) -> Result<AccountDataValue> {
         let account = client.get_account(pubkey).await?;
-        self.try_account_data_to_value(&account)
+        Ok(self.try_account_to_value(&account)?.0)
     }
 }

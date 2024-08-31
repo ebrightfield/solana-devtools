@@ -130,6 +130,7 @@ impl retry::Policy<reqwest::Request, reqwest::Response, reqwest::Error> for TooM
                                 response, self.retries_remaining, duration
                             );
 
+                    // stats_updater.add_rate_limited_time(duration);
                     return Some(tokio::time::sleep(duration));
                 }
                 // return Err(response.error_for_status().unwrap_err().into());
@@ -150,3 +151,14 @@ impl retry::Policy<reqwest::Request, reqwest::Response, reqwest::Error> for TooM
         Some(request)
     }
 }
+
+// // This is cool because then I can name weird shit in my services LOL
+// pub type DoThingFuture = impl Future<Output = u64>;
+
+// pub async fn do_thing() -> u64 {
+//     0
+// }
+
+// pub fn do_thing_inner() -> DoThingFuture {
+//     do_thing()
+// }

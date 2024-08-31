@@ -14,14 +14,14 @@ pub fn compute_budget_instruction(data: &[u8]) -> Result<ComputeBudgetInstructio
 }
 
 pub fn compute_budget_instruction_name(ix: &ComputeBudgetInstruction) -> &'static str {
-    match ix {
-        ComputeBudgetInstruction::RequestUnitsDeprecated { .. } => "request_units_deprecated",
+    match *ix {
         ComputeBudgetInstruction::RequestHeapFrame(_) => "request_heap_frame",
         ComputeBudgetInstruction::SetComputeUnitLimit(_) => "set_compute_unit_limit",
         ComputeBudgetInstruction::SetComputeUnitPrice(_) => "set_compute_unit_price",
         ComputeBudgetInstruction::SetLoadedAccountsDataSizeLimit(_) => {
             "set_loaded_accounts_data_size_limit"
         }
+        ComputeBudgetInstruction::RequestUnitsDeprecated { .. } => "request_units_deprecated",
     }
 }
 

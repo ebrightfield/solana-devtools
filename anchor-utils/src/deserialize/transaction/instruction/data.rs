@@ -10,7 +10,7 @@ impl IdlWithDiscriminators {
         &self,
         ix_data: &[u8],
     ) -> anyhow::Result<(IdlInstruction, Value)> {
-        let (discriminator, data) = partition_discriminator_from_data(ix_data);
+        let (discriminator, data) = partition_discriminator_from_data::<8>(ix_data);
         let ix = self
             .instruction_definitions
             .get(&discriminator)

@@ -358,7 +358,7 @@ mod tests {
         let rpc_addr = rx.recv().unwrap();
         let rpc_addr = format!("http://{}/", rpc_addr);
         let service = ServiceBuilder::new()
-            .layer(JsonRpcRequestLayer::new(rpc_addr.clone()).unwrap())
+            .layer(HttpRequestConfigLayer::new(rpc_addr.clone()).unwrap())
             .and_then(parse_response_body)
             .retry(TooManyRequestsRetry::new(4))
             .service(reqwest::Client::builder().build().unwrap());

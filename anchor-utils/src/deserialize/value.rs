@@ -28,7 +28,7 @@ impl IdlWithDiscriminators {
         type_def: &IdlTypeDefinition,
         value: &Value,
     ) -> anyhow::Result<Vec<u8>> {
-        let (_, discriminator, _) = self
+        let (discriminator, _) = self
             .find_type_definition_by_name(&type_def.name)
             .with_context(|| format!("could not find type definition for {}", type_def.name))?;
         let mut serialized_data: Vec<u8> = discriminator.to_vec();
@@ -213,7 +213,7 @@ impl IdlWithDiscriminators {
                 field.serialize(raw_data)?;
             }
             IdlType::Defined(defined_type) => {
-                let (_, _, type_def) =
+                let (_, type_def) =
                     self.find_type_definition_by_name(&defined_type)
                         .ok_or(anyhow!(
                             "Failed to find type definition for type named: {defined_type}"
@@ -314,7 +314,7 @@ impl IdlWithDiscriminators {
         if let Ok(ty) = IdlType::from_str(typename) {
             return self.len_of_idl_type(&ty);
         }
-        let (_, _, type_def) = self
+        let (_, type_def) = self
             .find_type_definition_by_name(typename)
             .ok_or(anyhow!("unknown type named {typename}"))?;
         self.len_from_type_definition(&type_def)

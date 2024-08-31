@@ -1,11 +1,10 @@
 use crate::deserialize::discriminator;
-use crate::deserialize::discriminator::Discriminator;
+use crate::deserialize::discriminator::AnchorDiscriminator;
 use crate::idl_sdk::account::deserialize_idl_account;
 use anchor_syn::idl::types::{
     Idl, IdlField, IdlInstruction, IdlTypeDefinition, IdlTypeDefinitionTy,
 };
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
 use solana_sdk::account::Account;
 use std::collections::BTreeMap;
 use std::fs;
@@ -13,17 +12,6 @@ use std::ops::Deref;
 use std::path::Path;
 
 const ENUM_VARIANT_FIELD_NAME: &'static str = "__enum_variant";
-
-/// A marker enum to help with tracking the origin of an [IdlTypeDefinition]
-/// being used in a deserialization attempt when the [IdlTypeDefinition] is obtained by name.
-/// Primarily for debugging purposes.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum IdlSection {
-    Instructions,
-    Accounts,
-    Types,
-    // TODO Events
-}
 
 /// A wrapped [anchor_syn::idl::Idl], with an accompanying
 /// collection of lookup tables mapping every account and instruction
@@ -33,10 +21,10 @@ pub enum IdlSection {
 #[derive(Debug, Clone)]
 pub struct IdlWithDiscriminators {
     idl: Idl,
-    pub instruction_definitions: BTreeMap<Discriminator, IdlInstruction>,
-    pub account_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
-    pub type_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
-    pub event_definitions: BTreeMap<Discriminator, IdlTypeDefinition>,
+    pub instruction_definitions: BTreeMap<AnchorDiscriminator, IdlInstruction>,
+    pub account_definitions: BTreeMap<AnchorDiscriminator, IdlTypeDefinition>,
+    pub type_definitions: BTreeMap<AnchorDiscriminator, IdlTypeDefinition>,
+    pub event_definitions: BTreeMap<AnchorDiscriminator, IdlTypeDefinition>,
     pub enum_variant_field_name: String,
 }
 
@@ -57,18 +45,21 @@ impl IdlWithDiscriminators {
     pub fn find_type_definition_by_name(
         &self,
         name: &str,
-    ) -> Option<(IdlSection, &[u8; 8], &IdlTypeDefinition)> {
+    ) -> Option<(&[u8; 8], &IdlTypeDefinition)> {
         if let Some((discriminator, ty_def)) = self.get_type_definition_by_name(name) {
-            return Some((IdlSection::Types, discriminator, ty_def));
+            return Some((discriminator, ty_def));
         }
         if let Some((discriminator, ty_def)) = self.get_account_definition_by_name(name) {
-            return Some((IdlSection::Accounts, discriminator, ty_def));
+            return Some((discriminator, ty_def));
         }
         // TODO Events
         None
     }
 
-    pub fn get_type_definition(&self, discriminator: &Discriminator) -> Option<&IdlTypeDefinition> {
+    pub fn get_type_definition(
+        &self,
+        discriminator: &AnchorDiscriminator,
+    ) -> Option<&IdlTypeDefinition> {
         self.type_definitions.get(discriminator)
     }
 
@@ -83,7 +74,7 @@ impl IdlWithDiscriminators {
 
     pub fn get_account_definition(
         &self,
-        discriminator: &Discriminator,
+        discriminator: &AnchorDiscriminator,
     ) -> Option<&IdlTypeDefinition> {
         self.account_definitions.get(discriminator)
     }

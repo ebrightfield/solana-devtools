@@ -161,14 +161,16 @@ pub struct JsonRpcToSolanaRpc;
 //    - Stores Request ID incrementer, additional headers, timeout, URL
 // 2. A layer to convert JSON-RPC Error, and start working with a BoxError.
 
+/// Converts a Solana RPC request + params into an HTTP JSON-RPC request,
+/// served with [Rewqest]
 #[derive(Debug, Clone)]
-pub struct JsonRpcRequestLayer {
+pub struct HttpRequestConfigLayer {
     pub headers: HeaderMap,
     pub timeout: Duration,
     pub url: Url,
 }
 
-impl JsonRpcRequestLayer {
+impl HttpRequestConfigLayer {
     pub fn new(url: impl AsRef<str>) -> Result<Self, BoxError> {
         let url = Url::parse(url.as_ref())?;
 
@@ -188,11 +190,11 @@ impl JsonRpcRequestLayer {
     }
 }
 
-impl<S> Layer<S> for JsonRpcRequestLayer {
-    type Service = JsonRpcRequestBuilder<S>;
+impl<S> Layer<S> for HttpRequestConfigLayer {
+    type Service = SolanaRpcToHttpLayer<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        JsonRpcRequestBuilder {
+        SolanaRpcToHttpLayer {
             service,
             request_id: AtomicU64::new(0),
             headers: self.headers.clone(),
@@ -204,7 +206,7 @@ impl<S> Layer<S> for JsonRpcRequestLayer {
 
 /// Service for layering in configuration to a [reqwest::Request]
 /// and constructing the JSON-RPC body.
-pub struct JsonRpcRequestBuilder<S> {
+pub struct SolanaRpcToHttpLayer<S> {
     service: S,
     request_id: AtomicU64,
     headers: HeaderMap,
@@ -212,7 +214,34 @@ pub struct JsonRpcRequestBuilder<S> {
     url: Url,
 }
 
-impl<S> Service<RpcSenderRequest> for JsonRpcRequestBuilder<S>
+impl<S> SolanaRpcToHttpLayer<S> {
+    pub fn new(
+        service: S,
+        url: Url,
+        timeout: Option<Duration>,
+        mut headers: Option<HeaderMap>,
+    ) -> Self {
+        let mut headers = headers.unwrap_or_default();
+        if headers.get(SOLANA_CLIENT).is_none() {
+            headers.append(
+                HeaderName::from_static(SOLANA_CLIENT),
+                HeaderValue::from_str(&rust_version()).unwrap(),
+            );
+        }
+        if headers.get(CONTENT_TYPE).is_none() {
+            headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
+        }
+        Self {
+            service,
+            request_id: AtomicU64::new(0),
+            headers,
+            timeout: timeout.unwrap_or(Duration::from_secs(30)),
+            url,
+        }
+    }
+}
+
+impl<S> Service<RpcSenderRequest> for SolanaRpcToHttpLayer<S>
 where
     S: Service<reqwest::Request>,
 {
@@ -230,11 +259,6 @@ where
         let body = jsonrpc_request_body(method.to_string(), params, request_id);
 
         let mut headers = HeaderMap::new();
-        headers.append(
-            HeaderName::from_static(SOLANA_CLIENT),
-            HeaderValue::from_str(&rust_version()).unwrap(),
-        );
-        headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
         headers.extend(self.headers.clone());
         let timeout = self.timeout.clone();
 
