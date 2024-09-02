@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tower::{BoxError, Layer, ServiceBuilder, ServiceExt};
+use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
 
 use super::reqwest_client::ReqwestRpcSender;
 
@@ -57,12 +57,12 @@ pub struct RpcClientSender<T> {
     tx: UnboundedSender<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
 }
 
-impl<T> RpcClientSender<T>
+impl<S> RpcClientSender<S>
 where
-    T: tower::Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
-    T::Future: Send + 'static,
+    S: Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+    S::Future: Send + 'static,
 {
-    pub fn new(service: T, url: String) -> Self {
+    pub fn new(service: S, url: String) -> Self {
         let (tx, rx) =
             mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
         let stats = Arc::new(RwLock::new(TransportStats::default()));
@@ -74,9 +74,9 @@ where
             tx,
         }
     }
-    pub fn new_from_builder<L>(url: String, builder: ServiceBuilder<L>) -> Self
+    pub fn new_http_from_builder<L>(url: String, builder: ServiceBuilder<L>) -> Self
     where
-        L: Layer<ReqwestRpcSender, Service = T>,
+        L: Layer<ReqwestRpcSender, Service = S>,
     {
         let service = ReqwestRpcSender::new(url.clone());
         let service = builder.service(service);
@@ -87,7 +87,23 @@ where
         Self {
             request_processing_handle: handle,
             url,
-            stats: Arc::new(RwLock::new(TransportStats::default())),
+            stats,
+            tx,
+        }
+    }
+    pub fn new_from_builder<L, U>(url: String, builder: ServiceBuilder<L>, inner: U) -> Self
+    where
+        L: Layer<U, Service = S>,
+    {
+        let service = builder.service(inner);
+        let (tx, rx) =
+            mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
+        let stats = Arc::new(RwLock::new(TransportStats::default()));
+        let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
+        Self {
+            request_processing_handle: handle,
+            url,
+            stats,
             tx,
         }
     }

@@ -165,7 +165,7 @@ mod tests {
     #[tokio::test]
     async fn service_order_doesnt_matter() {
         // Construct in a different order than below
-        let sender = RpcClientSender::new_from_builder(
+        let sender = RpcClientSender::new_http_from_builder(
             "http://localhost:8899".to_string(),
             ServiceBuilder::new()
                 .filter(|req: (RpcRequest, Value)| match &req.0 {
@@ -187,7 +187,7 @@ mod tests {
         let rpc_addr = rx.recv().unwrap();
         let rpc_addr = format!("http://{}", rpc_addr);
 
-        let sender = RpcClientSender::new_from_builder(
+        let sender = RpcClientSender::new_http_from_builder(
             rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(2, Duration::from_millis(600))
@@ -233,7 +233,7 @@ mod tests {
         let rpc_addr = rx.recv().unwrap();
         let rpc_addr = format!("http://{}", rpc_addr);
 
-        let sender = RpcClientSender::new_from_builder(
+        let sender = RpcClientSender::new_http_from_builder(
             rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(5, Duration::from_secs(60))
@@ -378,6 +378,33 @@ mod tests {
                 "RPC response error -32601: Method not found ".to_string()
             ))
             .to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn service_builder_test_3() {
+        let service = service_fn(fake_service);
+        let builder = ServiceBuilder::new().filter(|req: (RpcRequest, Value)| match &req.0 {
+            RpcRequest::GetBalance => Ok(req),
+            RpcRequest::GetVersion => Ok(req),
+            RpcRequest::GetLatestBlockhash => Ok(req),
+            _ => Err(Box::new(ClientError::from(TransportError::Custom(
+                "RPC Method not allowed".to_string(),
+            ))) as BoxError),
+        });
+
+        let sender = RpcClientSender::new_from_builder("ram://".to_string(), builder, service);
+        let rpc_client = RpcClient::new_sender(sender, Default::default());
+        let balance = rpc_client
+            .get_balance(&pubkey!("deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHh"))
+            .await
+            .unwrap();
+        assert_eq!(balance, 123456789);
+        let result = rpc_client.get_slot().await.unwrap_err();
+        assert_eq!(
+            result.to_string(),
+            ClientError::from(TransportError::Custom("RPC Method not allowed".to_string()))
+                .to_string()
         );
     }
 }

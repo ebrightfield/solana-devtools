@@ -1,56 +1,14 @@
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
-use futures::future::{AndThen, BoxFuture};
+use futures::future::BoxFuture;
 use reqwest::header::RETRY_AFTER;
 use reqwest::StatusCode;
 use serde_json::Value;
 use solana_client::rpc_request::RpcRequest;
-use std::future::{ready, Future};
-use std::pin::Pin;
+use std::future::ready;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::time::Sleep;
 use tower::{retry, BoxError, Service};
-
-// #[derive(Debug)]
-// pub struct RpcSenderMiddleware<S, F> {
-//     inner: S,
-//     f: F,
-// }
-
-// impl<S, F> RpcSenderMiddleware<S, F> {
-//     pub fn new(s: S, f: F) -> Self {
-//         Self { inner: s, f }
-//     }
-// }
-
-// impl<S, F, T> Service<T> for RpcSenderMiddleware<S, F>
-// where
-//     S: Service<T>,
-//     F: for<'a> Fn(&'a T) -> Option<Result<S::Response, S::Error>>,
-//     T: Send,
-// {
-//     type Response = S::Response;
-//     type Error = S::Error;
-//     type Future = BoxFuture<'static, Result<S::Response, S::Error>>;
-
-//     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-//         Poll::Ready(Ok(()))
-//     }
-
-//     fn call(&mut self, req: T) -> Self::Future {
-//         let result = (self.f)(&req);
-//         match result {
-//             None => self.inner.call(req),
-//             Some(result) => result,
-//         }
-//         // Box::pin(async move {
-//         //     match fut.await {
-//         //         None => self.inner.call(req).await,
-//         //         Some(result) => result,
-//         //     }
-//         // })
-//     }
-// }
 
 #[derive(Debug)]
 pub struct RpcSenderMiddleware<S, F> {
