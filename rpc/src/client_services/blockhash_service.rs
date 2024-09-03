@@ -17,7 +17,7 @@ use solana_sdk::{clock::Slot, commitment_config::CommitmentConfig, hash::Hash};
 use tokio::{task::JoinHandle, time::sleep};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CachedBlockhash {
+pub struct BlockhashCacheEntry {
     pub hash: Hash,
     pub last_valid_block_height: Option<u64>,
     pub slot: Option<Slot>,
@@ -25,7 +25,7 @@ pub struct CachedBlockhash {
     received_at: Instant,
 }
 
-impl CachedBlockhash {
+impl BlockhashCacheEntry {
     pub fn new(
         hash: Hash,
         last_valid_block_height: Option<u64>,
@@ -62,7 +62,7 @@ impl CachedBlockhash {
             )
             .context(e)
         })?;
-        Ok(CachedBlockhash {
+        Ok(BlockhashCacheEntry {
             hash,
             last_valid_block_height: Some(response.value.last_valid_block_height),
             slot: Some(response.context.slot),
@@ -83,12 +83,13 @@ pub struct BlockHashService {
     cache_size: usize,
     check_every: Duration,
     stagger_refresh_requests: Duration,
-    hashes: Arc<RwLock<VecDeque<CachedBlockhash>>>,
+    hashes: Arc<RwLock<VecDeque<BlockhashCacheEntry>>>,
     commitment_config: CommitmentConfig,
+    handle: Option<Arc<JoinHandle<anyhow::Result<()>>>>,
 }
 
 impl BlockHashService {
-    pub fn get_latest<'a>(&'a self, n: usize) -> anyhow::Result<Vec<CachedBlockhash>> {
+    pub fn get_latest<'a>(&'a self, n: usize) -> anyhow::Result<Vec<BlockhashCacheEntry>> {
         let mut hashes = write_lock_cache(&self.hashes)?;
         hashes.make_contiguous();
         let (h, _) = hashes.as_slices();
@@ -96,7 +97,7 @@ impl BlockHashService {
         Ok(h.to_vec())
     }
 
-    pub fn spawn_autorefresh_task(&self) -> JoinHandle<anyhow::Result<()>> {
+    pub fn spawn_autorefresh_task(&mut self) -> anyhow::Result<()> {
         let client = self.client.clone();
         let hashes = self.hashes.clone();
         let check_every = self.check_every;
@@ -118,7 +119,7 @@ impl BlockHashService {
                             tokio::spawn(async move {
                                 sleep(sleep_between_requests * i as u32).await;
                                 let recent_blockhash =
-                                    CachedBlockhash::new_from_rpc(&client, commitment)
+                                    BlockhashCacheEntry::new_from_rpc(&client, commitment)
                                         .await
                                         .map_err(|e| {
                                             anyhow!("failed to get blockhash from rpc").context(e)
@@ -132,7 +133,8 @@ impl BlockHashService {
                 }
             }
         });
-        handle
+        self.handle = Some(Arc::new(handle));
+        Ok(())
     }
 
     pub fn retain_no_older_than(mut self, duration: Duration) -> Self {
@@ -147,7 +149,7 @@ impl BlockHashService {
 }
 
 pub fn prune_blockhashes_older_than(
-    mut hashes: RwLockWriteGuard<VecDeque<CachedBlockhash>>,
+    mut hashes: RwLockWriteGuard<VecDeque<BlockhashCacheEntry>>,
     max_age: Duration,
 ) -> anyhow::Result<()> {
     let now = Instant::now();
@@ -162,16 +164,16 @@ pub fn prune_blockhashes_older_than(
 }
 
 fn write_lock_cache(
-    hashes: &RwLock<VecDeque<CachedBlockhash>>,
-) -> anyhow::Result<RwLockWriteGuard<VecDeque<CachedBlockhash>>> {
+    hashes: &RwLock<VecDeque<BlockhashCacheEntry>>,
+) -> anyhow::Result<RwLockWriteGuard<VecDeque<BlockhashCacheEntry>>> {
     hashes
         .write()
         .map_err(|e| anyhow!("failed to acquire blockhash cache writelock").context(format!("{e}")))
 }
 
 fn read_lock_cache(
-    hashes: &RwLock<VecDeque<CachedBlockhash>>,
-) -> anyhow::Result<RwLockReadGuard<VecDeque<CachedBlockhash>>> {
+    hashes: &RwLock<VecDeque<BlockhashCacheEntry>>,
+) -> anyhow::Result<RwLockReadGuard<VecDeque<BlockhashCacheEntry>>> {
     hashes
         .read()
         .map_err(|e| anyhow!("failed to acquire blockhash cache readlock").context(format!("{e}")))

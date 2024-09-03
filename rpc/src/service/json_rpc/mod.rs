@@ -219,7 +219,7 @@ impl<S> SolanaRpcToHttpLayer<S> {
         service: S,
         url: Url,
         timeout: Option<Duration>,
-        mut headers: Option<HeaderMap>,
+        headers: Option<HeaderMap>,
     ) -> Self {
         let mut headers = headers.unwrap_or_default();
         if headers.get(SOLANA_CLIENT).is_none() {
