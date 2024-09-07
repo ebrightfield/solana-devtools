@@ -9,12 +9,13 @@ use reqwest::Client;
 use serde_json::Value;
 use solana_client::client_error::ClientError;
 use solana_client::rpc_request::RpcRequest;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tower::{BoxError, Service};
+use tower::{BoxError, Layer, Service};
 use tracing::Instrument;
 
 use super::jsonrpc_to_solanarpc;
@@ -156,6 +157,105 @@ pub async fn parse_response_body(response: reqwest::Response) -> Result<Value, B
             }
             tracing::info!(jsonrpc_response=?json);
             Ok(json["result"].take())
+        }
+    }
+}
+
+pub struct ParseResponseBodyLayer;
+
+impl<S> Layer<S> for ParseResponseBodyLayer {
+    type Service = ParseResponseBody<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        ParseResponseBody { inner }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParseResponseBody<T> {
+    inner: T,
+}
+
+impl<S, Request, E, F> Service<Request> for ParseResponseBody<S>
+where
+    S: Service<Request, Error = E, Future = F>,
+    S::Error: std::error::Error + Send + Sync + 'static,
+    F: Future<Output = Result<reqwest::Response, reqwest::Error>> + Send,
+{
+    type Response = Value;
+    type Error = BoxError;
+    type Future = ParseResponseFuture<F>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner
+            .poll_ready(cx)
+            .map_err(|e| Box::new(e) as BoxError)
+    }
+
+    fn call(&mut self, request: Request) -> Self::Future {
+        let fut = self.inner.call(request);
+        ParseResponseFuture::new(fut)
+    }
+}
+
+pub struct ParseResponseFuture<F> {
+    // The response body is awaited and parsed as JSON-RPC output after this
+    inner_fut: Pin<Box<F>>,
+    http_response_body: Option<Pin<Box<dyn Future<Output = Result<Value, reqwest::Error>> + Send>>>,
+}
+
+impl<F> ParseResponseFuture<F> {
+    pub fn new(fut: F) -> Self {
+        Self {
+            inner_fut: Box::pin(fut),
+            http_response_body: None,
+        }
+    }
+}
+
+impl<F> Future for ParseResponseFuture<F>
+where
+    F: Future<Output = Result<reqwest::Response, reqwest::Error>> + Send,
+{
+    type Output = Result<Value, BoxError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(resp) = &mut self.http_response_body {
+            match resp.poll_unpin(cx) {
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+                Poll::Ready(r) => {
+                    return Poll::Ready(match r {
+                        Err(e) => {
+                            tracing::error!(http_error=?e);
+                            Err(Box::new(e) as BoxError)
+                        }
+                        Result::<Value, _>::Ok(mut r) => {
+                            if r["error"].is_object() {
+                                tracing::error!(jsonrpc_error = ?r);
+                                return Poll::Ready(RpcErrorObject::parse_value(r["error"].take()));
+                            }
+                            tracing::info!(jsonrpc_response=?r);
+                            Ok(r["result"].take())
+                        }
+                    });
+                }
+            }
+        }
+        match self.inner_fut.poll_unpin(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(r) => match r {
+                Ok(r) => {
+                    tracing::info!("{:?}", r);
+                    self.http_response_body = Some(Box::pin(r.json()));
+                    self.poll(cx)
+                }
+                Err(e) => {
+                    tracing::error!(jsonrpc_error=?e);
+                    Poll::Ready(Err(e.into()))
+                }
+            },
         }
     }
 }

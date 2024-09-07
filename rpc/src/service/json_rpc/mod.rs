@@ -191,10 +191,50 @@ impl HttpRequestConfigLayer {
 }
 
 impl<S> Layer<S> for HttpRequestConfigLayer {
-    type Service = SolanaRpcToHttpLayer<S>;
+    type Service = HttpRequestBuilderService<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        SolanaRpcToHttpLayer {
+        HttpRequestBuilderService {
+            service,
+            request_id: AtomicU64::new(0),
+            headers: self.headers.clone(),
+            timeout: self.timeout.clone(),
+            url: self.url.clone(),
+        }
+    }
+}
+
+pub struct HttpRequestBuilderLayer {
+    request_id: AtomicU64,
+    headers: HeaderMap,
+    timeout: Duration,
+    url: Url,
+}
+
+impl HttpRequestBuilderLayer {
+    pub fn new(url: Url) -> Self {
+        let timeout = Duration::from_secs(30);
+
+        let mut headers = HeaderMap::new();
+        headers.append(
+            HeaderName::from_static(SOLANA_CLIENT),
+            HeaderValue::from_str(&rust_version()).unwrap(),
+        );
+        headers.append(CONTENT_TYPE, HeaderValue::from_static(APPLICATION_JSON));
+        Self {
+            request_id: AtomicU64::new(0),
+            headers,
+            timeout,
+            url,
+        }
+    }
+}
+
+impl<S> Layer<S> for HttpRequestBuilderLayer {
+    type Service = HttpRequestBuilderService<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        HttpRequestBuilderService {
             service,
             request_id: AtomicU64::new(0),
             headers: self.headers.clone(),
@@ -206,7 +246,7 @@ impl<S> Layer<S> for HttpRequestConfigLayer {
 
 /// Service for layering in configuration to a [reqwest::Request]
 /// and constructing the JSON-RPC body.
-pub struct SolanaRpcToHttpLayer<S> {
+pub struct HttpRequestBuilderService<S> {
     service: S,
     request_id: AtomicU64,
     headers: HeaderMap,
@@ -214,7 +254,7 @@ pub struct SolanaRpcToHttpLayer<S> {
     url: Url,
 }
 
-impl<S> SolanaRpcToHttpLayer<S> {
+impl<S> HttpRequestBuilderService<S> {
     pub fn new(
         service: S,
         url: Url,
@@ -241,7 +281,7 @@ impl<S> SolanaRpcToHttpLayer<S> {
     }
 }
 
-impl<S> Service<RpcSenderRequest> for SolanaRpcToHttpLayer<S>
+impl<S> Service<RpcSenderRequest> for HttpRequestBuilderService<S>
 where
     S: Service<reqwest::Request>,
 {

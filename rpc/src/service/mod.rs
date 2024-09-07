@@ -12,6 +12,7 @@ pub use solana_client::rpc_request::RpcRequest;
 mod tests {
     use super::*;
     use futures::future::BoxFuture;
+    use reqwest::Url;
     use reqwest_client::parse_response_body;
     use serde_json::Value;
     use solana_client::client_error::{ClientError, ClientErrorKind};
@@ -156,17 +157,17 @@ mod tests {
     #[tokio::test]
     async fn generic_constructor() {
         let sender = RpcClientSender::new(
-            ReqwestRpcSender::new("http://localhost:8899".to_string()),
             "http://localhost:8899".to_string(),
+            ReqwestRpcSender::new("http://localhost:8899".to_string()),
         );
         let _ = RpcClient::new_sender(sender, Default::default());
     }
 
     #[tokio::test]
     async fn service_order_doesnt_matter() {
+        let url = Url::from_str("http://localhost:8899").unwrap();
         // Construct in a different order than below
         let sender = RpcClientSender::new_http_from_builder(
-            "http://localhost:8899".to_string(),
             ServiceBuilder::new()
                 .filter(|req: (RpcRequest, Value)| match &req.0 {
                     RpcRequest::GetBalance => Ok(req),
@@ -177,6 +178,7 @@ mod tests {
                     ))) as BoxError),
                 })
                 .rate_limit(5, Duration::from_secs(60)),
+            url,
         );
         let _ = RpcClient::new_sender(sender, Default::default());
     }
@@ -185,10 +187,9 @@ mod tests {
     async fn respects_inner_service_readiness() {
         let (rx, _) = spawn_test_server("0.0.0.0:0");
         let rpc_addr = rx.recv().unwrap();
-        let rpc_addr = format!("http://{}", rpc_addr);
+        let rpc_addr = Url::from_str(&format!("http://{}", rpc_addr)).unwrap();
 
         let sender = RpcClientSender::new_http_from_builder(
-            rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(2, Duration::from_millis(600))
                 .filter(|req: (RpcRequest, Value)| match &req.0 {
@@ -199,6 +200,7 @@ mod tests {
                         "RPC Method not allowed".to_string(),
                     ))) as BoxError),
                 }),
+            rpc_addr,
         );
         let rpc_client = RpcClient::new_sender(sender, Default::default());
 
@@ -231,10 +233,9 @@ mod tests {
     async fn service() {
         let (rx, _) = spawn_test_server("0.0.0.0:0");
         let rpc_addr = rx.recv().unwrap();
-        let rpc_addr = format!("http://{}", rpc_addr);
+        let rpc_addr = Url::from_str(&format!("http://{}", rpc_addr)).unwrap();
 
         let sender = RpcClientSender::new_http_from_builder(
-            rpc_addr,
             ServiceBuilder::new()
                 .rate_limit(5, Duration::from_secs(60))
                 .and_then(|resp| {
@@ -275,6 +276,7 @@ mod tests {
                         "RPC Method not allowed".to_string(),
                     ))) as BoxError),
                 }),
+            rpc_addr,
         );
 
         let rpc_client = RpcClient::new_sender(sender, Default::default());
@@ -335,7 +337,7 @@ mod tests {
             })
             .service_fn(fake_service);
 
-        let sender = RpcClientSender::new(service, "ram://".to_string());
+        let sender = RpcClientSender::new("ram://".to_string(), service);
 
         let rpc_client = RpcClient::new_sender(sender, Default::default());
 
@@ -353,6 +355,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn trying_thing() {
+        let url = Url::from_str("http://localhost:8899").unwrap();
+        let service = ServiceBuilder::new()
+            // .check_service::<_, RpcSenderRequest, Value, BoxError>()
+            .layer(HttpRequestBuilderLayer::new(url.clone()))
+            .and_then(parse_response_body)
+            .retry(TooManyRequestsRetry::new(4))
+            .service(reqwest::Client::builder().build().unwrap());
+        let sender = RpcClientSender::new(url.to_string(), service);
+        let _rpc_client = RpcClient::new_sender(sender, Default::default());
+    }
+
+    #[tokio::test]
     async fn service_fn_test2() {
         let (rx, _) = spawn_test_server("0.0.0.0:0");
         let rpc_addr = rx.recv().unwrap();
@@ -363,7 +378,7 @@ mod tests {
             .retry(TooManyRequestsRetry::new(4))
             .service(reqwest::Client::builder().build().unwrap());
 
-        let sender = RpcClientSender::new(service, rpc_addr.to_string());
+        let sender = RpcClientSender::new(rpc_addr.to_string(), service);
 
         let rpc_client = RpcClient::new_sender(sender, Default::default());
         let balance = rpc_client

@@ -1,17 +1,42 @@
 use crate::json_rpc::stats_updater::{StatsUpdater, TransportStats};
+use crate::middleware::TooManyRequestsRetry;
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
+use futures::TryFutureExt;
+use reqwest::Url;
 use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::rpc_request::RpcRequest;
 use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
+use std::future::Future;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tower::layer::util::Stack;
+use tower::retry::{Retry, RetryLayer};
+use tower::util::AndThenLayer;
 use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
 
-use super::reqwest_client::ReqwestRpcSender;
+use super::reqwest_client::{
+    parse_response_body, ParseResponseBody, ParseResponseBodyLayer, ReqwestRpcSender,
+};
+use super::{HttpRequestBuilderLayer, HttpRequestBuilderService, HttpRequestConfigLayer};
+
+// async fn process_request<S>(
+//     rpc_sender_service: Arc<RwLock<S>>,
+//     req: RpcSenderRequest,
+// ) -> impl Future<Output = Result<Value, BoxError>>
+// where
+//     S: 'static + tower::Service<RpcSenderRequest, Response = Value, Error = BoxError>,
+//     S::Future: 'static + Send,
+// {
+//     rpc_sender_service
+//         .write()
+//         .unwrap()
+//         .ready()
+//         .and_then(|s| s.call(req))
+// }
 
 #[tracing::instrument(skip_all)]
 async fn process_requests<S>(
@@ -51,7 +76,7 @@ where
 
 // Top level service struct.
 pub struct RpcClientSender<T> {
-    pub request_processing_handle: JoinHandle<T>,
+    pub handle: JoinHandle<T>,
     stats: Arc<RwLock<TransportStats>>,
     url: String,
     tx: UnboundedSender<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>,
@@ -62,47 +87,55 @@ where
     S: Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
     S::Future: Send + 'static,
 {
-    pub fn new(service: S, url: String) -> Self {
+    pub fn new(url: String, service: S) -> Self {
         let (tx, rx) =
             mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
         let stats = Arc::new(RwLock::new(TransportStats::default()));
         let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
         Self {
-            request_processing_handle: handle,
+            handle,
             url: url.clone(),
             stats,
             tx,
         }
     }
-    pub fn new_http_from_builder<L>(url: String, builder: ServiceBuilder<L>) -> Self
-    where
-        L: Layer<ReqwestRpcSender, Service = S>,
-    {
-        let service = ReqwestRpcSender::new(url.clone());
-        let service = builder.service(service);
-        let (tx, rx) =
-            mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
-        let stats = Arc::new(RwLock::new(TransportStats::default()));
-        let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
-        Self {
-            request_processing_handle: handle,
-            url,
-            stats,
-            tx,
-        }
-    }
+
     pub fn new_from_builder<L, U>(url: String, builder: ServiceBuilder<L>, inner: U) -> Self
     where
         L: Layer<U, Service = S>,
     {
         let service = builder.service(inner);
+        Self::new(url, service)
+        // let (tx, rx) =
+        //     mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
+        // let stats = Arc::new(RwLock::new(TransportStats::default()));
+        // let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
+        // Self {
+        //     request_processing_handle: handle,
+        //     url,
+        //     stats,
+        //     tx,
+        // }
+    }
+}
+
+impl<S> RpcClientSender<S>
+where
+    S: Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+    S::Future: Send + 'static,
+{
+    pub fn new_http_from_builder<L>(builder: ServiceBuilder<L>, url: Url) -> Self
+    where
+        L: Layer<DefaultRpcClient, Service = S>,
+    {
+        let service = builder.service(default_http_service(url.clone()));
         let (tx, rx) =
             mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
         let stats = Arc::new(RwLock::new(TransportStats::default()));
         let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
         Self {
-            request_processing_handle: handle,
-            url,
+            handle,
+            url: url.to_string(),
             stats,
             tx,
         }
@@ -117,7 +150,7 @@ impl RpcClientSender<ReqwestRpcSender> {
         let stats = Arc::new(RwLock::new(TransportStats::default()));
         let handle = tokio::spawn(process_requests(inner, stats.clone(), rx));
         Self {
-            request_processing_handle: handle,
+            handle,
             url,
             stats: Arc::new(RwLock::new(TransportStats::default())),
             tx,
@@ -160,4 +193,14 @@ where
     fn url(&self) -> String {
         self.url.clone()
     }
+}
+pub type DefaultRpcClient =
+    ParseResponseBody<HttpRequestBuilderService<Retry<TooManyRequestsRetry, reqwest::Client>>>;
+
+fn default_http_service(url: Url) -> DefaultRpcClient {
+    ServiceBuilder::new()
+        .layer(ParseResponseBodyLayer)
+        .layer(HttpRequestBuilderLayer::new(url))
+        .retry(TooManyRequestsRetry::new(4))
+        .service(reqwest::Client::builder().build().unwrap())
 }
