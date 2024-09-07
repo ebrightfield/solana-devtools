@@ -1,18 +1,21 @@
 use crate::json_rpc::stats_updater::{StatsUpdater, TransportStats};
 use crate::middleware::TooManyRequestsRetry;
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
+use futures::future::BoxFuture;
 use reqwest::Url;
 use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::rpc_request::RpcRequest;
 use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
+use std::future::Future;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tower::retry::Retry;
-use tower::{BoxError, Layer, Service, ServiceBuilder, ServiceExt};
+use tower::util::ServiceFn;
+use tower::{service_fn, BoxError, Layer, Service, ServiceBuilder, ServiceExt};
 
 use super::parse_response_body::{ParseResponseBody, ParseResponseBodyLayer};
 use super::{HttpRequestBuilderLayer, HttpRequestBuilderService};
@@ -74,6 +77,17 @@ impl RpcClientSender<DefaultHttpService> {
             stats,
             tx,
         }
+    }
+}
+
+impl<S, F> RpcClientSender<ServiceFn<S>>
+where
+    S: FnMut(RpcSenderRequest) -> F + Send + 'static,
+    F: Future<Output = Result<Value, BoxError>> + Send + 'static,
+{
+    pub fn new_mock(name: &str, f: S) -> Self {
+        let service = service_fn(f);
+        Self::new_with_service(name.to_string(), service)
     }
 }
 

@@ -33,9 +33,10 @@ where
 
     type Future = BoxFuture<'static, Result<Value, BoxError>>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // self.inner.poll_ready(cx)
-        Poll::Ready(Ok(()))
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+        //     .map_err(|e| Box::new(e) as BoxError);
+        // Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: RpcSenderRequest) -> Self::Future {
@@ -49,12 +50,14 @@ where
 #[derive(Debug, Clone)]
 pub struct TooManyRequestsRetry {
     retries_remaining: usize,
+    rate_limited_time: Duration,
 }
 
 impl TooManyRequestsRetry {
     pub fn new(num_retries: usize) -> Self {
         Self {
             retries_remaining: num_retries,
+            rate_limited_time: Default::default(),
         }
     }
 }
@@ -88,10 +91,9 @@ impl retry::Policy<reqwest::Request, reqwest::Response, reqwest::Error> for TooM
                                 response, self.retries_remaining, duration
                             );
 
-                    // stats_updater.add_rate_limited_time(duration);
+                    self.rate_limited_time += duration;
                     return Some(tokio::time::sleep(duration));
                 }
-                // return Err(response.error_for_status().unwrap_err().into());
             }
         }
         None
@@ -109,14 +111,3 @@ impl retry::Policy<reqwest::Request, reqwest::Response, reqwest::Error> for TooM
         Some(request)
     }
 }
-
-// // This is cool because then I can name weird shit in my services LOL
-// pub type DoThingFuture = impl Future<Output = u64>;
-
-// pub async fn do_thing() -> u64 {
-//     0
-// }
-
-// pub fn do_thing_inner() -> DoThingFuture {
-//     do_thing()
-// }
