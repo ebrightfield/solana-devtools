@@ -446,5 +446,47 @@ mod tests {
             result.to_string(),
             ClientError::from(TransportError::Custom("foo".to_string())).to_string()
         );
+
+        let sender = RpcClientSender::new_mock_with_builder(
+            "foo",
+            |(method, params)| async move {
+                match method {
+                    RpcRequest::GetBalance => {
+                        tracing::info!(?params);
+                        let resp = serde_json::to_value(Response {
+                            context: RpcResponseContext {
+                                slot: 100,
+                                api_version: None,
+                            },
+                            value: 123456777,
+                        })
+                        .unwrap();
+                        tracing::info!(?resp);
+                        Ok(resp)
+                    }
+                    RpcRequest::GetVersion => Ok(serde_json::to_value(RpcVersionInfo {
+                        solana_core: "1.18.21".to_string(),
+                        feature_set: Some(99),
+                    })
+                    .unwrap()),
+                    _ => Err(Box::new(ClientError::new_with_request(
+                        ClientErrorKind::Custom("foo".to_string()),
+                        method,
+                    )) as BoxError),
+                }
+            },
+            ServiceBuilder::new().concurrency_limit(4),
+        );
+        let rpc_client = RpcClient::new_sender(sender, Default::default());
+        let balance = rpc_client
+            .get_balance(&pubkey!("deadbeefXjn8o3yroDHxUtKsZZgoy4GPkPPXfouKNHh"))
+            .await
+            .unwrap();
+        assert_eq!(balance, 123456777);
+        let result = rpc_client.get_slot().await.unwrap_err();
+        assert_eq!(
+            result.to_string(),
+            ClientError::from(TransportError::Custom("foo".to_string())).to_string()
+        );
     }
 }

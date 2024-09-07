@@ -1,7 +1,6 @@
 use crate::json_rpc::stats_updater::{StatsUpdater, TransportStats};
 use crate::middleware::TooManyRequestsRetry;
 use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
-use futures::future::BoxFuture;
 use reqwest::Url;
 use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind};
@@ -77,6 +76,39 @@ impl RpcClientSender<DefaultHttpService> {
             stats,
             tx,
         }
+    }
+}
+
+impl<T> RpcClientSender<T>
+// impl<S, F> RpcClientSender<ServiceFn<S>>
+where
+    // S: FnMut(RpcSenderRequest) -> F + Send + 'static,
+    // F: Future<Output = Result<Value, BoxError>> + Send + 'static,
+    // T: ServiceFn<S>,
+    T: Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+    T::Future: Send + 'static,
+{
+    pub fn new_mock_with_builder<S, F, L>(name: &str, f: S, builder: ServiceBuilder<L>) -> Self
+    where
+        S: FnMut(RpcSenderRequest) -> F + Send + 'static,
+        F: Future<Output = Result<Value, BoxError>> + Send + 'static,
+        // L: Layer<ServiceFn<S>, Service = T>,
+        L: Layer<ServiceFn<S>, Service = T>,
+        // T: Service<RpcSenderRequest, Response = Value, Error = BoxError> + Send + 'static,
+        // T::Future: Send + 'static,
+    {
+        let service = builder.service(service_fn(f));
+        Self::new_with_service(name.to_string(), service)
+        // let (tx, rx) =
+        //     mpsc::unbounded_channel::<(RpcSenderRequest, oneshot::Sender<RpcSenderResponse>)>();
+        // let stats = Arc::new(RwLock::new(TransportStats::default()));
+        // let handle = tokio::spawn(process_requests(service, stats.clone(), rx));
+        // Self {
+        //     handle,
+        //     url: url.to_string(),
+        //     stats,
+        //     tx,
+        // }
     }
 }
 
