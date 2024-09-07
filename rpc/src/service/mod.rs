@@ -2,7 +2,6 @@ pub mod json_rpc;
 
 pub use json_rpc::*;
 
-pub use json_rpc::ReqwestRpcSender;
 pub use json_rpc::RpcClientSender;
 
 pub use serde_json::Value;
@@ -12,8 +11,9 @@ pub use solana_client::rpc_request::RpcRequest;
 mod tests {
     use super::*;
     use futures::future::BoxFuture;
+    use parse_response_body::parse_response_body;
     use reqwest::Url;
-    use reqwest_client::parse_response_body;
+    use rpc_client_sender::default_http_service;
     use serde_json::Value;
     use solana_client::client_error::{ClientError, ClientErrorKind};
     use solana_client::rpc_request::RpcRequest;
@@ -21,7 +21,7 @@ mod tests {
     use crate::middleware::{RpcSenderMiddleware, TooManyRequestsRetry};
     use crossbeam_channel::{unbounded, Receiver};
     use futures_util::future;
-    use json_rpc::{reqwest_client::ReqwestRpcSender, RpcClientSender};
+    use json_rpc::RpcClientSender;
     use jsonrpc_core::{IoHandler, Params};
     use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
     use serde_json::json;
@@ -100,13 +100,13 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_sender_on_tokio_multi_thread() {
-        let http_sender = RpcClientSender::new_reqwest("http://localhost:0".to_string());
+        let http_sender = RpcClientSender::new_http("http://localhost:0".try_into().unwrap());
         let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn http_sender_on_tokio_current_thread() {
-        let http_sender = RpcClientSender::new_reqwest("http://localhost:0".to_string());
+        let http_sender = RpcClientSender::new_http("http://localhost:0".try_into().unwrap());
         let _ = http_sender.send(RpcRequest::GetVersion, Value::Null).await;
     }
 
@@ -128,9 +128,9 @@ mod tests {
     async fn _test_send() {
         let (rx, _) = spawn_test_server("0.0.0.0:0");
         let rpc_addr = rx.recv().unwrap();
-        let rpc_addr = format!("http://{}", rpc_addr);
+        let rpc_addr = Url::from_str(&format!("http://{}", rpc_addr)).unwrap();
 
-        let sender = RpcClientSender::new_reqwest(rpc_addr);
+        let sender = RpcClientSender::new_http(rpc_addr);
         let rpc_client = RpcClient::new_sender(sender, Default::default());
         // tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -156,10 +156,8 @@ mod tests {
 
     #[tokio::test]
     async fn generic_constructor() {
-        let sender = RpcClientSender::new(
-            "http://localhost:8899".to_string(),
-            ReqwestRpcSender::new("http://localhost:8899".to_string()),
-        );
+        let url = Url::from_str("http://localhost:8899").unwrap();
+        let sender = RpcClientSender::new_with_service(url.to_string(), default_http_service(url));
         let _ = RpcClient::new_sender(sender, Default::default());
     }
 
@@ -337,7 +335,7 @@ mod tests {
             })
             .service_fn(fake_service);
 
-        let sender = RpcClientSender::new("ram://".to_string(), service);
+        let sender = RpcClientSender::new_with_service("ram://".to_string(), service);
 
         let rpc_client = RpcClient::new_sender(sender, Default::default());
 
@@ -355,30 +353,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn trying_thing() {
-        let url = Url::from_str("http://localhost:8899").unwrap();
-        let service = ServiceBuilder::new()
-            // .check_service::<_, RpcSenderRequest, Value, BoxError>()
-            .layer(HttpRequestBuilderLayer::new(url.clone()))
-            .and_then(parse_response_body)
-            .retry(TooManyRequestsRetry::new(4))
-            .service(reqwest::Client::builder().build().unwrap());
-        let sender = RpcClientSender::new(url.to_string(), service);
-        let _rpc_client = RpcClient::new_sender(sender, Default::default());
-    }
-
-    #[tokio::test]
     async fn service_fn_test2() {
         let (rx, _) = spawn_test_server("0.0.0.0:0");
         let rpc_addr = rx.recv().unwrap();
         let rpc_addr = format!("http://{}/", rpc_addr);
         let service = ServiceBuilder::new()
-            .layer(HttpRequestConfigLayer::new(rpc_addr.clone()).unwrap())
             .and_then(parse_response_body)
+            .layer(HttpRequestBuilderLayer::new(
+                Url::from_str(&rpc_addr).unwrap(),
+            ))
             .retry(TooManyRequestsRetry::new(4))
             .service(reqwest::Client::builder().build().unwrap());
 
-        let sender = RpcClientSender::new(rpc_addr.to_string(), service);
+        let sender = RpcClientSender::new_with_service(rpc_addr.to_string(), service);
 
         let rpc_client = RpcClient::new_sender(sender, Default::default());
         let balance = rpc_client
