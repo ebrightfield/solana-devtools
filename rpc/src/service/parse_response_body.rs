@@ -14,7 +14,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tower::{BoxError, Layer, Service};
 
-use super::RpcSenderResponse;
+use super::rpc_sender_impl::SolanaClientResponse;
 
 /// Helper struct for easier decoding of the `"error"` field in an RPC response.
 #[derive(Deserialize, Debug)]
@@ -24,7 +24,7 @@ struct RpcErrorObject {
 }
 
 /// Certain special values get dedicating checking and parsing routines.
-fn parse_rpc_error(json: Value) -> RpcSenderResponse {
+fn parse_rpc_error(json: Value) -> SolanaClientResponse {
     let rpc_error_object = serde_json::from_value::<RpcErrorObject>(json.clone()).map_err(|e| {
         RpcError::RpcRequestError(format!(
             "Failed to deserialize RPC error response: {} [{}]",
@@ -68,7 +68,7 @@ fn parse_rpc_error(json: Value) -> RpcSenderResponse {
 /// - Extracting the "result" field from a successful response, or
 /// - Parsing the "error" field from an error response
 #[tracing::instrument]
-pub fn jsonrpc_to_solanarpc(mut json: Value) -> RpcSenderResponse {
+pub fn jsonrpc_to_solanarpc(mut json: Value) -> SolanaClientResponse {
     if json["error"].is_object() {
         tracing::error!(jsonrpc_error = ?json);
         return parse_rpc_error(json["error"].take());

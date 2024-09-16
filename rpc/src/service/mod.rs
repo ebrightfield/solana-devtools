@@ -1,19 +1,23 @@
-pub mod json_rpc;
-
-pub use json_rpc::*;
-
-pub use json_rpc::RpcClientSender;
+pub mod http_request_builder;
+pub mod parse_response_body;
+pub mod rpc_sender_impl;
+pub mod stats_updater;
 
 pub use serde_json::Value;
 pub use solana_client::rpc_request::RpcRequest;
 
+pub use http_request_builder::{HttpRequestBuilderLayer, HttpRequestBuilderService};
+pub use parse_response_body::{ParseResponseBody, ParseResponseBodyLayer};
+
 #[cfg(test)]
 mod tests {
+    use super::rpc_sender_impl::SolanaClientRequest;
     use super::*;
     use futures::future::BoxFuture;
+    use http_request_builder::HttpRequestBuilderLayer;
     use parse_response_body::parse_response_body;
     use reqwest::Url;
-    use rpc_client_sender::default_http_service;
+    use rpc_sender_impl::{default_http_service, RpcClientSender};
     use serde_json::Value;
     use solana_client::client_error::{ClientError, ClientErrorKind};
     use solana_client::rpc_request::RpcRequest;
@@ -21,7 +25,6 @@ mod tests {
     use crate::middleware::{RpcSenderMiddleware, TooManyRequestsRetry};
     use crossbeam_channel::{unbounded, Receiver};
     use futures_util::future;
-    use json_rpc::RpcClientSender;
     use jsonrpc_core::{IoHandler, Params};
     use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
     use serde_json::json;
@@ -292,7 +295,7 @@ mod tests {
         );
     }
 
-    fn fake_service(request: RpcSenderRequest) -> BoxFuture<'static, Result<Value, BoxError>> {
+    fn fake_service(request: SolanaClientRequest) -> BoxFuture<'static, Result<Value, BoxError>> {
         Box::pin(async move {
             let (method, params) = request;
             match method {

@@ -1,66 +1,18 @@
 use std::{
-    future::Future,
     sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
     time::Duration,
 };
 
-use futures::future::BoxFuture;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
     Method, Url,
 };
 use serde_json::{json, Value};
-use tower::{BoxError, Layer, Service};
+use tower::{Layer, Service};
 
-pub mod parse_response_body;
-pub mod rpc_client_sender;
-pub mod stats_updater;
-
-pub use rpc_client_sender::RpcClientSender;
-use solana_client::rpc_request::RpcRequest;
-
-/// The data types sent to `RpcSender::send`, grouped into a tuple.
-pub type RpcSenderRequest = (RpcRequest, Value);
-pub use solana_client::client_error::ClientError as SolanaClientError;
-
-use tower::BoxError as ClientError;
-
-pub type RpcSenderResult<T> = Result<T, ClientError>;
-/// The response type to `RpcSender::send`.
-pub type RpcSenderResponse = RpcSenderResult<Value>;
-/// The return type of an RpcSenderService
-pub type RpcSenderResponseFuture =
-    BoxFuture<'static, dyn Future<Output = RpcSenderResponse> + Send>;
-
-/// Marker trait for anything that implements the [tower::Service] trait with
-/// the appropriate request and response types.
-///
-/// Any type that implements this trait can be wrapped in an [RpcClientSender]
-/// and inherit the [RpcSender] trait as a consequence.
-/// This allows one to make full use of the tower Service interface to compose
-/// custom middleware, mocked return values, caches, retry mechanisms, and much more.
-///
-/// See [ReqwestRpcSender] for an example implementation of the [tower::Service] trait.
-pub trait RpcSenderService:
-    tower::Service<
-        RpcSenderRequest,
-        Error = BoxError,
-        Future = BoxFuture<'static, Result<Value, BoxError>>,
-    > + Send
-    + Sync
-{
-}
-
-impl<T> RpcSenderService for T where
-    T: tower::Service<
-            RpcSenderRequest,
-            Error = BoxError,
-            Future = BoxFuture<'static, Result<Value, BoxError>>,
-        > + Send
-        + Sync
-{
-}
+pub use super::rpc_sender_impl::RpcClientSender;
+use super::rpc_sender_impl::SolanaClientRequest;
 
 pub(crate) const JSON_RPC: &'static str = "2.0";
 pub(crate) const APPLICATION_JSON: &'static str = "application/json";
@@ -156,7 +108,7 @@ impl<S> HttpRequestBuilderService<S> {
     }
 }
 
-impl<S> Service<RpcSenderRequest> for HttpRequestBuilderService<S>
+impl<S> Service<SolanaClientRequest> for HttpRequestBuilderService<S>
 where
     S: Service<reqwest::Request>,
 {
@@ -168,7 +120,7 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, request: RpcSenderRequest) -> Self::Future {
+    fn call(&mut self, request: SolanaClientRequest) -> Self::Future {
         let (method, params) = request;
         let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
         let body = jsonrpc_request_body(method.to_string(), params, request_id);

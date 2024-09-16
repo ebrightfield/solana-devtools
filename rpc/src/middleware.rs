@@ -1,4 +1,4 @@
-use crate::service::json_rpc::{RpcSenderRequest, RpcSenderResponse};
+use crate::service::rpc_sender_impl::{SolanaClientRequest, SolanaClientResponse};
 use futures::future::BoxFuture;
 use reqwest::header::RETRY_AFTER;
 use reqwest::StatusCode;
@@ -22,11 +22,11 @@ impl<S, F> RpcSenderMiddleware<S, F> {
     }
 }
 
-impl<S, F> Service<RpcSenderRequest> for RpcSenderMiddleware<S, F>
+impl<S, F> Service<SolanaClientRequest> for RpcSenderMiddleware<S, F>
 where
-    S: Service<RpcSenderRequest, Response = Value, Error = BoxError>,
+    S: Service<SolanaClientRequest, Response = Value, Error = BoxError>,
     S::Future: Send + 'static,
-    F: for<'a> Fn(&'a RpcRequest, &'a Value) -> Option<RpcSenderResponse>,
+    F: for<'a> Fn(&'a RpcRequest, &'a Value) -> Option<SolanaClientResponse>,
 {
     type Response = Value;
     type Error = BoxError;
@@ -39,7 +39,7 @@ where
         // Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: RpcSenderRequest) -> Self::Future {
+    fn call(&mut self, req: SolanaClientRequest) -> Self::Future {
         match (self.f)(&req.0, &req.1) {
             None => Box::pin(self.inner.call(req)),
             Some(result) => Box::pin(ready(result)),
